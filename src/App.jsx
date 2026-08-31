@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
+import { supabase } from "./supabaseClient";
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -94,7 +95,43 @@ const NAV = [
   { id: "inventario", label: "Inventario", icon: Package },
 ];
 
-export default function App() {
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(false);
+
+  async function entrar(e) {
+    e.preventDefault();
+    setError("");
+    setCargando(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setCargando(false);
+    if (error) setError("Correo o contraseña incorrectos.");
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
+      <form onSubmit={entrar} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Ingeniería y Tecnología Henríquez</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Inicia sesión para continuar</div>
+        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Correo</label>
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 14px", fontSize: 14 }} />
+        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Contraseña</label>
+        <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 6px", fontSize: 14 }} />
+        {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+        <button type="submit" disabled={cargando}
+          style={{ width: "100%", marginTop: 14, padding: "11px 0", borderRadius: 10, border: "none", background: "#177A63", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+          {cargando ? "Entrando..." : "Entrar"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function Panel() {
   const [tab, setTab] = useState("dashboard");
   const [clientes, setClientes] = useSupabaseState("clientes");
   const [productos, setProductos] = useSupabaseState("productos");
@@ -290,7 +327,8 @@ export default function App() {
         </nav>
         <div className="hw-sidebar-foot">
           Reparto Oquet, Santiago<br />
-          849-393-6337
+          849-393-6337<br />
+          <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 8, background: "none", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 7, padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>Cerrar sesión</button>
         </div>
       </aside>
 
@@ -1333,4 +1371,26 @@ function Inventario({ productos, setProductos }) {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setCargando(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nuevaSesion) => {
+      setSession(nuevaSesion);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  if (cargando) {
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.6)", background: "#0c1420" }}>Cargando...</div>;
+  }
+  if (!session) return <Login />;
+  return <Panel />;
 }
