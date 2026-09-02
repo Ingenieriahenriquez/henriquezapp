@@ -163,48 +163,6 @@ function Panel() {
         .hw-sidebar::-webkit-scrollbar{width:6px;}
         .hw-sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:10px;}
 
-        @media (max-width: 1440px) {
-          .hw-main{padding:20px 22px;}
-          .hw-sidebar{width:200px;}
-          .hw-title{font-size:19px;}
-          .hw-tiles{grid-template-columns:repeat(3,1fr);gap:9px;}
-          .hw-tile{padding:14px 10px;gap:10px;}
-          .hw-tile-label{font-size:12px;}
-        }
-        @media (max-width: 1200px) {
-          .hw-grid{grid-template-columns:repeat(2,1fr);}
-          .hw-quick{grid-template-columns:1fr;}
-          .hw-tiles{grid-template-columns:repeat(2,1fr);}
-        }
-        @media (max-width: 900px) {
-          .hw-root{flex-direction:column;height:auto;overflow:visible;}
-          .hw-sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:8px;}
-          .hw-main{height:auto;overflow:visible;}
-        }
-        .hw-mobile-topbar{display:none;}
-        @media (max-width: 640px) {
-          .hw-root{height:100vh;overflow:hidden;}
-          .hw-mobile-topbar{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:52px;background:var(--navy);color:#fff;padding:0 14px;z-index:41;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
-          .hw-mobile-topbar-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
-          .hw-mobile-topbar-sub{font-size:10px;color:rgba(255,255,255,0.5);}
-          .hw-sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;width:100%;height:auto;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:6px 4px;z-index:42;box-shadow:0 -2px 10px rgba(0,0,0,0.18);-webkit-overflow-scrolling:touch;}
-          .hw-brand,.hw-sidebar-foot{display:none;}
-          .hw-nav{flex-direction:row;flex:none;width:max-content;min-width:100%;padding:0;gap:2px;justify-content:space-around;}
-          .hw-nav-btn{flex-direction:column;gap:3px;font-size:9.5px;padding:7px 10px;white-space:nowrap;border-radius:8px;}
-          .hw-nav-btn:hover{transform:none;}
-          .hw-main{padding:68px 14px 78px;height:100vh;overflow-y:auto;}
-          .hw-header{flex-direction:column;align-items:flex-start;gap:6px;}
-          .hw-header .hw-btn{width:100%;justify-content:center;}
-          .hw-title{font-size:19px;}
-          .hw-grid{grid-template-columns:repeat(2,1fr);gap:9px;}
-          .hw-tiles{grid-template-columns:repeat(2,1fr);}
-          .hw-quick{grid-template-columns:1fr;gap:12px;}
-          .hw-panel{overflow-x:auto;}
-          table.hw-table{min-width:640px;}
-          .hw-modal-overlay{padding:10px;align-items:flex-end;}
-          .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
-          .hw-btn.small{padding:8px 12px;font-size:12.5px;}
-        }
         .hw-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;}
         .hw-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
         .hw-sub{color:var(--muted);font-size:13px;margin-top:2px;}
@@ -299,6 +257,48 @@ function Panel() {
         .hw-paper-total-row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
         .hw-paper-total-row.grand{font-weight:700;font-size:13px;border-top:1px solid #ccc;margin-top:4px;padding-top:5px;}
 
+        @media (max-width: 1440px) {
+          .hw-main{padding:20px 22px;}
+          .hw-sidebar{width:200px;}
+          .hw-title{font-size:19px;}
+          .hw-tiles{grid-template-columns:repeat(3,1fr);gap:9px;}
+          .hw-tile{padding:14px 10px;gap:10px;}
+          .hw-tile-label{font-size:12px;}
+        }
+        @media (max-width: 1200px) {
+          .hw-grid{grid-template-columns:repeat(2,1fr);}
+          .hw-quick{grid-template-columns:1fr;}
+          .hw-tiles{grid-template-columns:repeat(2,1fr);}
+        }
+        @media (max-width: 900px) {
+          .hw-root{flex-direction:column;height:auto;overflow:visible;}
+          .hw-sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:8px;}
+          .hw-main{height:auto;overflow:visible;}
+        }
+        .hw-mobile-topbar{display:none;}
+        @media (max-width: 640px) {
+          .hw-root{height:100vh;overflow:hidden;}
+          .hw-mobile-topbar{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:52px;background:var(--navy);color:#fff;padding:0 14px;z-index:41;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+          .hw-mobile-topbar-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
+          .hw-mobile-topbar-sub{font-size:10px;color:rgba(255,255,255,0.5);}
+          .hw-sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;width:100%;height:auto;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:6px 4px;z-index:42;box-shadow:0 -2px 10px rgba(0,0,0,0.18);-webkit-overflow-scrolling:touch;}
+          .hw-brand,.hw-sidebar-foot{display:none;}
+          .hw-nav{flex-direction:row;flex:none;width:max-content;min-width:100%;padding:0;gap:2px;justify-content:space-around;}
+          .hw-nav-btn{flex-direction:column;gap:3px;font-size:9.5px;padding:7px 10px;white-space:nowrap;border-radius:8px;}
+          .hw-nav-btn:hover{transform:none;}
+          .hw-main{padding:68px 14px 78px;height:100vh;overflow-y:auto;}
+          .hw-header{flex-direction:column;align-items:flex-start;gap:6px;}
+          .hw-header .hw-btn{width:100%;justify-content:center;}
+          .hw-title{font-size:19px;}
+          .hw-grid{grid-template-columns:repeat(2,1fr);gap:9px;}
+          .hw-tiles{grid-template-columns:repeat(2,1fr);}
+          .hw-quick{grid-template-columns:1fr;gap:12px;}
+          .hw-panel{overflow-x:auto;}
+          table.hw-table{min-width:640px;}
+          .hw-modal-overlay{padding:10px;align-items:flex-end;}
+          .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
+          .hw-btn.small{padding:8px 12px;font-size:12.5px;}
+        }
         @media print {
           body * { visibility: hidden; }
           .hw-print-paper, .hw-print-paper * { visibility: visible; }
