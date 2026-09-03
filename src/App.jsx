@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
@@ -93,7 +93,30 @@ const NAV = [
   { id: "recepcion", label: "Recepción equipos", icon: Wrench },
   { id: "ordenes", label: "Órdenes de trabajo", icon: Hammer },
   { id: "inventario", label: "Inventario", icon: Package },
+  { id: "reportes", label: "Reportes", icon: BarChart3 },
+  { id: "usuarios", label: "Usuarios", icon: UserCog },
+  { id: "codigobarras", label: "Código de barras", icon: Barcode },
+  { id: "abonos", label: "Abonos", icon: Coins },
+  { id: "graficas", label: "Gráficas", icon: LineChart },
+  { id: "caja", label: "Caja", icon: Banknote },
+  { id: "ajustes", label: "Ajustes", icon: Settings },
+  { id: "chatsoporte", label: "Chat soporte", icon: Headphones },
 ];
+
+// Pantalla simple para módulos que todavía no tienen funcionalidad real
+function Proximamente({ titulo }) {
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">{titulo}</div><div className="hw-sub">Este módulo está en construcción</div></div>
+      </div>
+      <div className="hw-panel" style={{ padding: "48px 24px", textAlign: "center", color: "var(--muted)" }}>
+        <div style={{ fontSize: 15 }}>"{titulo}" estará disponible próximamente.</div>
+        <div style={{ fontSize: 13, marginTop: 6 }}>Este acceso ya está listo en el menú — solo falta construir la funcionalidad.</div>
+      </div>
+    </div>
+  );
+}
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -333,13 +356,35 @@ function Panel() {
       </aside>
 
       <main className="hw-main">
-        {tab === "dashboard" && <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} />}
-        {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />}
-        {tab === "facturacion" && <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} />}
-        {tab === "cotizaciones" && <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setFacturas={setFacturas} setTab={setTab} />}
-        {tab === "recepcion" && <RecepcionEquipos recepciones={recepciones} setRecepciones={setRecepciones} clientes={clientes} />}
-        {tab === "ordenes" && <OrdenesTrabajo ordenes={ordenes} setOrdenes={setOrdenes} clientes={clientes} />}
-        {tab === "inventario" && <Inventario productos={productos} setProductos={setProductos} />}
+        <div style={{ display: tab === "dashboard" ? "block" : "none" }}>
+          <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} />
+        </div>
+        <div style={{ display: tab === "clientes" ? "block" : "none" }}>
+          <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />
+        </div>
+        <div style={{ display: tab === "facturacion" ? "block" : "none" }}>
+          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} />
+        </div>
+        <div style={{ display: tab === "cotizaciones" ? "block" : "none" }}>
+          <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} />
+        </div>
+        <div style={{ display: tab === "recepcion" ? "block" : "none" }}>
+          <RecepcionEquipos recepciones={recepciones} setRecepciones={setRecepciones} clientes={clientes} />
+        </div>
+        <div style={{ display: tab === "ordenes" ? "block" : "none" }}>
+          <OrdenesTrabajo ordenes={ordenes} setOrdenes={setOrdenes} clientes={clientes} />
+        </div>
+        <div style={{ display: tab === "inventario" ? "block" : "none" }}>
+          <Inventario productos={productos} setProductos={setProductos} />
+        </div>
+        <div style={{ display: tab === "reportes" ? "block" : "none" }}><Proximamente titulo="Reportes" /></div>
+        <div style={{ display: tab === "usuarios" ? "block" : "none" }}><Proximamente titulo="Usuarios" /></div>
+        <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><Proximamente titulo="Código de barras" /></div>
+        <div style={{ display: tab === "abonos" ? "block" : "none" }}><Proximamente titulo="Abonos" /></div>
+        <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
+        <div style={{ display: tab === "caja" ? "block" : "none" }}><Proximamente titulo="Caja" /></div>
+        <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Proximamente titulo="Ajustes" /></div>
+        <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><Proximamente titulo="Chat soporte" /></div>
       </main>
     </div>
   );
@@ -366,6 +411,14 @@ const TILES = [
   { id: "cotizaciones", label: "Cotizaciones", icon: ClipboardList, from: "#E0952E", to: "#B9720F" },
   { id: "recepcion", label: "Recepción\nequipos", icon: Wrench, from: "#9A6BD1", to: "#7448AC" },
   { id: "ordenes", label: "Órdenes de\ntrabajo", icon: Hammer, from: "#1D9A7C", to: "#116651" },
+  { id: "reportes", label: "Reportes", icon: BarChart3, from: "#3F8FE0", to: "#2B67AC" },
+  { id: "usuarios", label: "Usuarios", icon: UserCog, from: "#6B7280", to: "#454A52" },
+  { id: "codigobarras", label: "Código de\nbarras", icon: Barcode, from: "#1F2937", to: "#0F1520" },
+  { id: "abonos", label: "Abonos", icon: Coins, from: "#C9A227", to: "#96790E" },
+  { id: "graficas", label: "Gráficas", icon: LineChart, from: "#2FA6A6", to: "#1E7A7A" },
+  { id: "caja", label: "Caja", icon: Banknote, from: "#2F9E67", to: "#1E7449" },
+  { id: "ajustes", label: "Ajustes", icon: Settings, from: "#7A7F87", to: "#565A61" },
+  { id: "chatsoporte", label: "Chat\nsoporte", icon: Headphones, from: "#D1497A", to: "#A5325C" },
 ];
 
 function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, ordenes, setTab }) {
@@ -693,7 +746,10 @@ function FieldRow({ label, children }) {
   return <div className="hw-field"><label className="hw-label">{label}</label>{children}</div>;
 }
 
-function ItemsEditor({ items, setItems, productos }) {
+function ItemsEditor({ items, setItems, productos, setProductos }) {
+  const [nuevoIdx, setNuevoIdx] = useState(null);
+  const [np, setNp] = useState({ nombre: "", categoria: "Otro", precio: 0, costo: 0, stock: 0, minimo: 0 });
+
   function update(idx, field, value) {
     const next = [...items];
     next[idx] = { ...next[idx], [field]: value };
@@ -711,6 +767,18 @@ function ItemsEditor({ items, setItems, productos }) {
     next[idx] = { nombre: name, cantidad: next[idx].cantidad || 1, precio: p ? p.precio : next[idx].precio };
     setItems(next);
   }
+  function abrirNuevoProducto(idx) {
+    setNp({ nombre: "", categoria: "Otro", precio: 0, costo: 0, stock: 0, minimo: 0 });
+    setNuevoIdx(idx);
+  }
+  function guardarNuevoProducto() {
+    if (!np.nombre.trim()) return;
+    const producto = { id: uid(), nombre: np.nombre.trim(), categoria: np.categoria, precio: Number(np.precio) || 0, costo: Number(np.costo) || 0, stock: Number(np.stock) || 0, minimo: Number(np.minimo) || 0 };
+    setProductos([...productos, producto]);
+    pickProduct(nuevoIdx, producto.nombre);
+    setNuevoIdx(null);
+  }
+
   return (
     <div>
       {items.map((it, idx) => (
@@ -722,10 +790,43 @@ function ItemsEditor({ items, setItems, productos }) {
           </select>
           <input className="hw-input" type="number" min={1} value={it.cantidad} onChange={(e) => update(idx, "cantidad", Number(e.target.value))} />
           <input className="hw-input" type="number" value={it.precio} onChange={(e) => update(idx, "precio", Number(e.target.value))} />
+          {setProductos && <button className="hw-close" title="Crear producto nuevo" onClick={() => abrirNuevoProducto(idx)}><Plus size={15} /></button>}
           <button className="hw-close" onClick={() => removeItem(idx)}><X size={15} /></button>
         </div>
       ))}
       <button className="hw-btn ghost small" onClick={addItem}><Plus size={13} /> Agregar línea</button>
+
+      {nuevoIdx !== null && (
+        <div className="hw-modal-overlay" onClick={() => setNuevoIdx(null)}>
+          <div className="hw-modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head">
+              <div className="hw-modal-title">Nuevo producto rápido</div>
+              <button className="hw-close" onClick={() => setNuevoIdx(null)}><X size={18} /></button>
+            </div>
+            <FieldRow label="Nombre *">
+              <input className="hw-input" autoFocus value={np.nombre} onChange={(e) => setNp({ ...np, nombre: e.target.value })} />
+            </FieldRow>
+            <FieldRow label="Categoría">
+              <input className="hw-input" value={np.categoria} onChange={(e) => setNp({ ...np, categoria: e.target.value })} />
+            </FieldRow>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Precio de venta">
+                <input className="hw-input" type="number" value={np.precio} onChange={(e) => setNp({ ...np, precio: e.target.value })} />
+              </FieldRow>
+              <FieldRow label="Costo">
+                <input className="hw-input" type="number" value={np.costo} onChange={(e) => setNp({ ...np, costo: e.target.value })} />
+              </FieldRow>
+              <FieldRow label="Stock inicial">
+                <input className="hw-input" type="number" value={np.stock} onChange={(e) => setNp({ ...np, stock: e.target.value })} />
+              </FieldRow>
+              <FieldRow label="Mínimo">
+                <input className="hw-input" type="number" value={np.minimo} onChange={(e) => setNp({ ...np, minimo: e.target.value })} />
+              </FieldRow>
+            </div>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardarNuevoProducto}>Crear y usar en esta línea</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -847,7 +948,7 @@ function PrintPreview({ doc, onClose }) {
   );
 }
 
-function Facturacion({ facturas, setFacturas, clientes, productos }) {
+function Facturacion({ facturas, setFacturas, clientes, productos, setProductos }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -954,7 +1055,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos }) {
                 <option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option>
               </select>
             </FieldRow>
-            <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} /></FieldRow>
+            <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
               <div className="hw-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-total-row"><span>ITBIS (18%)</span><span>{money(totals.itbis)}</span></div>
@@ -975,7 +1076,7 @@ function nextCot(cotizaciones) {
   return "COT-" + String(max + 1).padStart(4, "0");
 }
 
-function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setFacturas, setTab }) {
+function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setProductos, setFacturas, setTab }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -1086,7 +1187,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setF
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.negocio ? " · " + c.negocio : ""}</option>)}
               </select>
             </FieldRow>
-            <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} /></FieldRow>
+            <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
               <div className="hw-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-total-row"><span>ITBIS (18%)</span><span>{money(totals.itbis)}</span></div>
