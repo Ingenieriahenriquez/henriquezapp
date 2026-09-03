@@ -118,6 +118,89 @@ function Proximamente({ titulo }) {
   );
 }
 
+const MODULOS_ASIGNABLES = NAV.filter((n) => n.id !== "dashboard" && n.id !== "usuarios");
+
+function UsuariosAdmin({ permisos, setPermisos, miEmail }) {
+  const [nuevoEmail, setNuevoEmail] = useState("");
+  const [nuevosModulos, setNuevosModulos] = useState([]);
+
+  function toggleModulo(persona, moduloId) {
+    const tiene = persona.modulos?.includes(moduloId);
+    const modulos = tiene ? persona.modulos.filter((m) => m !== moduloId) : [...(persona.modulos || []), moduloId];
+    setPermisos(permisos.map((p) => (p.id === persona.id ? { ...p, modulos } : p)));
+  }
+
+  function toggleNuevoModulo(moduloId) {
+    setNuevosModulos((prev) => (prev.includes(moduloId) ? prev.filter((m) => m !== moduloId) : [...prev, moduloId]));
+  }
+
+  function agregarUsuario() {
+    const correo = nuevoEmail.trim().toLowerCase();
+    if (!correo) return;
+    if (permisos.find((p) => p.email === correo)) { alert("Ya existe un permiso para ese correo."); return; }
+    setPermisos([...permisos, { id: uid(), email: correo, esAdmin: false, modulos: nuevosModulos }]);
+    setNuevoEmail("");
+    setNuevosModulos([]);
+  }
+
+  function quitarUsuario(id) {
+    setPermisos(permisos.filter((p) => p.id !== id));
+  }
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Usuarios</div><div className="hw-sub">Controla a qué módulos tiene acceso cada persona</div></div>
+      </div>
+
+      <div className="hw-panel" style={{ padding: 20, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>
+          Aquí solo controlas los <b>permisos</b>. Para que alguien pueda entrar de verdad, primero crea su correo y contraseña en Supabase (Authentication → Users → Add user), con el mismo correo que escribas aquí.
+        </div>
+        <FieldRow label="Correo del empleado">
+          <input className="hw-input" type="email" placeholder="correo@ejemplo.com" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} />
+        </FieldRow>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "8px 0 12px" }}>
+          {MODULOS_ASIGNABLES.map((m) => (
+            <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, background: "var(--bg2, #f3f5f8)", padding: "6px 10px", borderRadius: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={nuevosModulos.includes(m.id)} onChange={() => toggleNuevoModulo(m.id)} />
+              {m.label}
+            </label>
+          ))}
+        </div>
+        <button className="hw-btn" onClick={agregarUsuario}><Plus size={15} /> Agregar usuario</button>
+      </div>
+
+      <div className="hw-panel">
+        <table className="hw-table">
+          <thead><tr><th>Correo</th><th>Módulos permitidos</th><th></th></tr></thead>
+          <tbody>
+            {permisos.map((p) => (
+              <tr key={p.id}>
+                <td>{p.email}{p.email === miEmail && " (tú)"}{p.esAdmin && <span className="hw-badge" style={{ marginLeft: 6 }}>Administrador</span>}</td>
+                <td>
+                  {p.esAdmin ? "Acceso total" : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {MODULOS_ASIGNABLES.map((m) => (
+                        <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                          <input type="checkbox" checked={p.modulos?.includes(m.id) || false} onChange={() => toggleModulo(p, m.id)} />
+                          {m.label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td>{!p.esAdmin && <button className="hw-btn soft-red small" onClick={() => quitarUsuario(p.id)}>Quitar</button>}</td>
+              </tr>
+            ))}
+            {permisos.length === 0 && <tr><td colSpan={3} className="hw-empty">Sin usuarios todavía</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -154,7 +237,7 @@ function Login() {
   );
 }
 
-function Panel() {
+function Panel({ session }) {
   const [tab, setTab] = useState("dashboard");
   const [clientes, setClientes] = useSupabaseState("clientes");
   const [productos, setProductos] = useSupabaseState("productos");
@@ -162,6 +245,15 @@ function Panel() {
   const [cotizaciones, setCotizaciones] = useSupabaseState("cotizaciones");
   const [recepciones, setRecepciones] = useSupabaseState("recepciones");
   const [ordenes, setOrdenes] = useSupabaseState("ordenes");
+  const [permisos, setPermisos] = useSupabaseState("permisos_usuario");
+
+  const miEmail = session?.user?.email || "";
+  const miPermiso = permisos.find((p) => p.email === miEmail);
+  const esAdmin = !!miPermiso?.esAdmin;
+  const modulosPermitidos = esAdmin
+    ? NAV.map((n) => n.id)
+    : ["dashboard", ...(miPermiso?.modulos || [])];
+  const puedeVer = (id) => id === "dashboard" || (id === "usuarios" ? esAdmin : modulosPermitidos.includes(id));
 
   return (
     <div style={{ "--ink": "#151A24", "--bg": "#F3F4F8", "--panel": "#FFFFFF", "--navy": "#101827", "--navy2": "#1B2A41", "--accent": "#E0791C", "--accent2": "#C4640F", "--accent-soft": "#FDECD9", "--teal": "#0F6E84", "--teal-soft": "#DFF0F3", "--green": "#2F9E67", "--green-soft": "#E1F5EA", "--red": "#C24F3A", "--red-soft": "#FBE7E3", "--blue": "#3F6FD1", "--blue-soft": "#E5EBFB", "--purple": "#8B5FBF", "--purple-soft": "#EFE6F7", "--jade": "#177A63", "--jade-soft": "#DCF1EA", "--line": "#E7E9EF", "--muted": "#6B7280" }}
@@ -342,7 +434,7 @@ function Panel() {
           <div className="hw-brand-sub">Henríquez System v0.2</div>
         </div>
         <nav className="hw-nav">
-          {NAV.map((n) => (
+          {NAV.filter((n) => puedeVer(n.id)).map((n) => (
             <button key={n.id} className={"hw-nav-btn" + (tab === n.id ? " active" : "")} onClick={() => setTab(n.id)}>
               <n.icon size={16} /> {n.label}
             </button>
@@ -357,7 +449,7 @@ function Panel() {
 
       <main className="hw-main">
         <div style={{ display: tab === "dashboard" ? "block" : "none" }}>
-          <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} />
+          <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} puedeVer={puedeVer} />
         </div>
         <div style={{ display: tab === "clientes" ? "block" : "none" }}>
           <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />
@@ -378,7 +470,7 @@ function Panel() {
           <Inventario productos={productos} setProductos={setProductos} />
         </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Proximamente titulo="Reportes" /></div>
-        <div style={{ display: tab === "usuarios" ? "block" : "none" }}><Proximamente titulo="Usuarios" /></div>
+        <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><Proximamente titulo="Código de barras" /></div>
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Proximamente titulo="Abonos" /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
@@ -421,7 +513,7 @@ const TILES = [
   { id: "chatsoporte", label: "Chat\nsoporte", icon: Headphones, from: "#D1497A", to: "#A5325C" },
 ];
 
-function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, ordenes, setTab }) {
+function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, ordenes, setTab, puedeVer }) {
   const [qc, setQc] = useState("");
   const [qa, setQa] = useState("");
   const mesFacturas = facturas.length;
@@ -462,7 +554,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
           </div>
         </div>
         <div className="hw-tiles">
-          {TILES.map((t) => (
+          {TILES.filter((t) => puedeVer(t.id)).map((t) => (
             <button key={t.id} className="hw-tile" style={{ background: `linear-gradient(135deg, ${t.from}, ${t.to})` }} onClick={() => setTab(t.id)}>
               <div className="hw-tile-icon"><t.icon size={19} color="#fff" /></div>
               <div className="hw-tile-label" style={{ whiteSpace: "pre-line" }}>{t.label}</div>
@@ -1493,5 +1585,5 @@ export default function App() {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.6)", background: "#0c1420" }}>Cargando...</div>;
   }
   if (!session) return <Login />;
-  return <Panel />;
+  return <Panel session={session} />;
 }
