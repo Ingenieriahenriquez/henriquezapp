@@ -7,6 +7,8 @@ const CAMEL_TO_SNAKE = {
   clienteId: "cliente_id",
   clienteNombre: "cliente_nombre",
   marcaModelo: "marca_modelo",
+  userId: "user_id",
+  esAdmin: "es_admin",
 };
 const SNAKE_TO_CAMEL = Object.fromEntries(
   Object.entries(CAMEL_TO_SNAKE).map(([camel, snake]) => [snake, camel])
