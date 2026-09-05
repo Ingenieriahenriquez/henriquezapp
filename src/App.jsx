@@ -172,7 +172,7 @@ function UsuariosAdmin({ permisos, setPermisos, miEmail }) {
       </div>
 
       <div className="hw-panel">
-        <table className="hw-table">
+        <table className="hw-table hw-t-usuarios">
           <thead><tr><th>Correo</th><th>Módulos permitidos</th><th></th></tr></thead>
           <tbody>
             {permisos.map((p) => (
@@ -408,8 +408,51 @@ function Panel({ session }) {
           .hw-grid{grid-template-columns:repeat(2,1fr);gap:9px;}
           .hw-tiles{grid-template-columns:repeat(2,1fr);}
           .hw-quick{grid-template-columns:1fr;gap:12px;}
-          .hw-panel{overflow-x:auto;}
-          table.hw-table{min-width:640px;}
+          .hw-panel{overflow-x:visible;}
+          table.hw-table{width:100%;border-collapse:collapse;}
+          table.hw-table thead{display:none;}
+          table.hw-table, table.hw-table tbody, table.hw-table tr, table.hw-table td{display:block;width:100%;}
+          table.hw-table tr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff;}
+          table.hw-table td{border:none;padding:4px 0;white-space:normal;}
+          .hw-t-usuarios td:nth-of-type(1):not(.hw-empty)::before{content:"Correo: ";font-weight:600;color:var(--muted);}
+          .hw-t-usuarios td:nth-of-type(2)::before{content:"Módulos: ";font-weight:600;color:var(--muted);display:block;margin-bottom:4px;}
+          .hw-t-facrec td:nth-of-type(1):not(.hw-empty)::before{content:"NCF: ";font-weight:600;color:var(--muted);}
+          .hw-t-facrec td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-facrec td:nth-of-type(3)::before{content:"Fecha: ";font-weight:600;color:var(--muted);}
+          .hw-t-facrec td:nth-of-type(4)::before{content:"Total: ";font-weight:600;color:var(--muted);}
+          .hw-t-facrec td:nth-of-type(5)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-equiporep td:nth-of-type(1):not(.hw-empty)::before{content:"Equipo: ";font-weight:600;color:var(--muted);}
+          .hw-t-equiporep td:nth-of-type(2)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-clientes td:nth-of-type(1):not(.hw-empty)::before{content:"Nombre: ";font-weight:600;color:var(--muted);}
+          .hw-t-clientes td:nth-of-type(2)::before{content:"Negocio: ";font-weight:600;color:var(--muted);}
+          .hw-t-clientes td:nth-of-type(3)::before{content:"RNC/Cédula: ";font-weight:600;color:var(--muted);}
+          .hw-t-clientes td:nth-of-type(4)::before{content:"Teléfono: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(1):not(.hw-empty)::before{content:"NCF: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(3)::before{content:"Fecha: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(4)::before{content:"Método: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(5)::before{content:"Total: ";font-weight:600;color:var(--muted);}
+          .hw-t-facturas td:nth-of-type(6)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-cotizaciones td:nth-of-type(1):not(.hw-empty)::before{content:"No.: ";font-weight:600;color:var(--muted);}
+          .hw-t-cotizaciones td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-cotizaciones td:nth-of-type(3)::before{content:"Fecha: ";font-weight:600;color:var(--muted);}
+          .hw-t-cotizaciones td:nth-of-type(4)::before{content:"Total: ";font-weight:600;color:var(--muted);}
+          .hw-t-cotizaciones td:nth-of-type(5)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-recepcion td:nth-of-type(1):not(.hw-empty)::before{content:"No.: ";font-weight:600;color:var(--muted);}
+          .hw-t-recepcion td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-recepcion td:nth-of-type(3)::before{content:"Equipo: ";font-weight:600;color:var(--muted);}
+          .hw-t-recepcion td:nth-of-type(4)::before{content:"Técnico: ";font-weight:600;color:var(--muted);}
+          .hw-t-recepcion td:nth-of-type(5)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-ordenes td:nth-of-type(1):not(.hw-empty)::before{content:"No.: ";font-weight:600;color:var(--muted);}
+          .hw-t-ordenes td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-ordenes td:nth-of-type(3)::before{content:"Tipo: ";font-weight:600;color:var(--muted);}
+          .hw-t-ordenes td:nth-of-type(4)::before{content:"Técnico: ";font-weight:600;color:var(--muted);}
+          .hw-t-ordenes td:nth-of-type(5)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-inventario td:nth-of-type(1):not(.hw-empty)::before{content:"Producto: ";font-weight:600;color:var(--muted);}
+          .hw-t-inventario td:nth-of-type(2)::before{content:"Categoría: ";font-weight:600;color:var(--muted);}
+          .hw-t-inventario td:nth-of-type(3)::before{content:"Costo: ";font-weight:600;color:var(--muted);}
+          .hw-t-inventario td:nth-of-type(4)::before{content:"Precio: ";font-weight:600;color:var(--muted);}
+          .hw-t-inventario td:nth-of-type(5)::before{content:"Stock: ";font-weight:600;color:var(--muted);}
           .hw-modal-overlay{padding:10px;align-items:flex-end;}
           .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
@@ -693,7 +736,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
         <div className="hw-panel">
           <div className="hw-panel-head"><div className="hw-panel-title">Últimas facturas</div></div>
-          <table className="hw-table">
+          <table className="hw-table hw-t-facrec">
             <thead><tr><th>NCF</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody>
               {facturas.slice(-5).reverse().map((f) => {
@@ -715,7 +758,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
 
         <div className="hw-panel">
           <div className="hw-panel-head"><div className="hw-panel-title">Equipos en taller</div></div>
-          <table className="hw-table">
+          <table className="hw-table hw-t-equiporep">
             <thead><tr><th>Equipo</th><th>Estado</th></tr></thead>
             <tbody>
               {recepciones.slice(-5).reverse().map((r) => (
@@ -770,7 +813,7 @@ function Clientes({ clientes, setClientes, facturas }) {
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1.3fr 1fr" : "1fr", gap: 16 }}>
         <div className="hw-panel">
-          <table className="hw-table">
+          <table className="hw-table hw-t-clientes">
             <thead><tr><th>Nombre</th><th>Negocio</th><th>RNC/Cédula</th><th>Teléfono</th><th></th></tr></thead>
             <tbody>
               {filtered.map((c) => (
@@ -1105,7 +1148,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos 
       </div>
 
       <div className="hw-panel">
-        <table className="hw-table">
+        <table className="hw-table hw-t-facturas">
           <thead><tr><th>NCF</th><th>Cliente</th><th>Fecha</th><th>Método</th><th>Total</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {facturas.slice().reverse().map((f) => {
@@ -1238,7 +1281,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
       </div>
 
       <div className="hw-panel">
-        <table className="hw-table">
+        <table className="hw-table hw-t-cotizaciones">
           <thead><tr><th>No.</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {cotizaciones.slice().reverse().map((c) => {
@@ -1333,7 +1376,7 @@ function RecepcionEquipos({ recepciones, setRecepciones, clientes }) {
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1.3fr 1fr" : "1fr", gap: 16 }}>
         <div className="hw-panel">
-          <table className="hw-table">
+          <table className="hw-table hw-t-recepcion">
             <thead><tr><th>No.</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Estado</th><th></th></tr></thead>
             <tbody>
               {recepciones.slice().reverse().map((r) => (
@@ -1438,7 +1481,7 @@ function OrdenesTrabajo({ ordenes, setOrdenes, clientes }) {
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1.3fr 1fr" : "1fr", gap: 16 }}>
         <div className="hw-panel">
-          <table className="hw-table">
+          <table className="hw-table hw-t-ordenes">
             <thead><tr><th>No.</th><th>Cliente</th><th>Tipo de trabajo</th><th>Técnico</th><th>Estado</th><th></th></tr></thead>
             <tbody>
               {ordenes.slice().reverse().map((o) => (
@@ -1526,7 +1569,7 @@ function Inventario({ productos, setProductos }) {
         <button className="hw-btn" onClick={() => setOpen(true)}><Plus size={15} /> Nuevo producto</button>
       </div>
       <div className="hw-panel">
-        <table className="hw-table">
+        <table className="hw-table hw-t-inventario">
           <thead><tr><th>Producto</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Stock</th><th></th></tr></thead>
           <tbody>
             {productos.map((p) => (
