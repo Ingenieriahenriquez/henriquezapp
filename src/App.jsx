@@ -3,6 +3,7 @@ import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Chec
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
+import JsBarcode from "jsbarcode";
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -113,6 +114,59 @@ function Proximamente({ titulo }) {
       <div className="hw-panel" style={{ padding: "48px 24px", textAlign: "center", color: "var(--muted)" }}>
         <div style={{ fontSize: 15 }}>"{titulo}" estará disponible próximamente.</div>
         <div style={{ fontSize: 13, marginTop: 6 }}>Este acceso ya está listo en el menú — solo falta construir la funcionalidad.</div>
+      </div>
+    </div>
+  );
+}
+
+function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
+  const actual = negocioConfig[0] || BUSINESS;
+  const [form, setForm] = useState({ nombre: actual.nombre || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
+  const [guardado, setGuardado] = useState(false);
+
+  function guardar() {
+    if (negocioConfig[0]) {
+      setNegocioConfig(negocioConfig.map((n) => (n.id === negocioConfig[0].id ? { ...n, ...form } : n)));
+    } else {
+      setNegocioConfig([...negocioConfig, { id: uid(), ...form }]);
+    }
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 2500);
+  }
+
+  if (!esAdmin) {
+    return (
+      <div>
+        <div className="hw-header"><div><div className="hw-title">Ajustes</div><div className="hw-sub">Información del negocio</div></div></div>
+        <div className="hw-panel" style={{ padding: 20 }}>
+          <div><b>Nombre:</b> {actual.nombre}</div>
+          <div><b>Dirección:</b> {actual.direccion}</div>
+          <div><b>Teléfono:</b> {actual.telefono}</div>
+          {actual.rnc && <div><b>RNC:</b> {actual.rnc}</div>}
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Solo un administrador puede editar estos datos.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="hw-header"><div><div className="hw-title">Ajustes</div><div className="hw-sub">Datos de tu negocio (aparecen en toda la app, facturas y cotizaciones)</div></div></div>
+      <div className="hw-panel" style={{ padding: 20, maxWidth: 480 }}>
+        <FieldRow label="Nombre del negocio">
+          <input className="hw-input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+        </FieldRow>
+        <FieldRow label="Dirección">
+          <input className="hw-input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+        </FieldRow>
+        <FieldRow label="Teléfono / WhatsApp">
+          <input className="hw-input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+        </FieldRow>
+        <FieldRow label="RNC">
+          <input className="hw-input" value={form.rnc} onChange={(e) => setForm({ ...form, rnc: e.target.value })} />
+        </FieldRow>
+        <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar cambios</button>
+        {guardado && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Guardado — ya se actualizó en toda la app.</div>}
       </div>
     </div>
   );
@@ -248,6 +302,8 @@ function Panel({ session }) {
   const [permisos, setPermisos] = useSupabaseState("permisos_usuario");
   const [cajaSesiones, setCajaSesiones] = useSupabaseState("caja_sesiones");
   const [cajaMovimientos, setCajaMovimientos] = useSupabaseState("caja_movimientos");
+  const [negocioConfig, setNegocioConfig] = useSupabaseState("negocio_config");
+  const negocio = negocioConfig[0] || BUSINESS;
 
   const miEmail = session?.user?.email || "";
   const miPermiso = permisos.find((p) => p.email === miEmail);
@@ -483,14 +539,14 @@ function Panel({ session }) {
 
       <div className="hw-mobile-topbar">
         <div>
-          <div className="hw-mobile-topbar-name">Henríquez</div>
+          <div className="hw-mobile-topbar-name">{negocio.nombre}</div>
           <div className="hw-mobile-topbar-sub">Sistema de facturación</div>
         </div>
       </div>
 
       <aside className="hw-sidebar">
         <div className="hw-brand">
-          <div className="hw-brand-name">Ingeniería y Tecnología<br />Henríquez</div>
+          <div className="hw-brand-name">{negocio.nombre}</div>
           <div className="hw-brand-sub">Henríquez System v0.2</div>
         </div>
         <nav className="hw-nav">
@@ -501,24 +557,24 @@ function Panel({ session }) {
           ))}
         </nav>
         <div className="hw-sidebar-foot">
-          Reparto Oquet, Santiago<br />
-          849-393-6337<br />
+          {negocio.direccion}<br />
+          {negocio.telefono}<br />
           <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 8, background: "none", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 7, padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>Cerrar sesión</button>
         </div>
       </aside>
 
       <main className="hw-main">
         <div style={{ display: tab === "dashboard" ? "block" : "none" }}>
-          <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} puedeVer={puedeVer} />
+          <Dashboard clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos} recepciones={recepciones} ordenes={ordenes} setTab={setTab} puedeVer={puedeVer} negocio={negocio} />
         </div>
         <div style={{ display: tab === "clientes" ? "block" : "none" }}>
           <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />
         </div>
         <div style={{ display: tab === "facturacion" ? "block" : "none" }}>
-          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} />
+          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} />
         </div>
         <div style={{ display: tab === "cotizaciones" ? "block" : "none" }}>
-          <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} />
+          <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} negocio={negocio} />
         </div>
         <div style={{ display: tab === "recepcion" ? "block" : "none" }}>
           <RecepcionEquipos recepciones={recepciones} setRecepciones={setRecepciones} clientes={clientes} />
@@ -535,7 +591,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Proximamente titulo="Abonos" /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
-        <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Proximamente titulo="Ajustes" /></div>
+        <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Ajustes negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} /></div>
         <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><Proximamente titulo="Chat soporte" /></div>
       </main>
     </div>
@@ -573,7 +629,7 @@ const TILES = [
   { id: "chatsoporte", label: "Chat\nsoporte", icon: Headphones, from: "#D1497A", to: "#A5325C" },
 ];
 
-function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, ordenes, setTab, puedeVer }) {
+function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, ordenes, setTab, puedeVer, negocio }) {
   const [qc, setQc] = useState("");
   const [qa, setQa] = useState("");
   const mesFacturas = facturas.length;
@@ -610,7 +666,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
         <div className="hw-hero-top">
           <div>
             <div className="hw-hero-brand">Henríquez System <span className="hw-hero-badge">v0.2</span></div>
-            <div className="hw-hero-sub">Ingeniería y Tecnología Henríquez · Reparto Oquet, Santiago</div>
+            <div className="hw-hero-sub">{negocio.nombre} · {negocio.direccion}</div>
           </div>
         </div>
         <div className="hw-tiles">
@@ -1040,9 +1096,19 @@ function triggerPrint(formato) {
   setTimeout(() => window.print(), 50);
 }
 
-function PrintPreview({ doc, onClose }) {
+function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
   const paperRef = useRef(null);
+  const barcodeRef = useRef(null);
+
+  useEffect(() => {
+    if (barcodeRef.current && doc?.numero) {
+      try {
+        JsBarcode(barcodeRef.current, doc.numero, { format: "CODE128", width: 1.5, height: 36, displayValue: true, fontSize: 11, margin: 6 });
+      } catch (e) { console.error("No se pudo generar el código de barras:", e); }
+    }
+  }, [doc?.numero, formato]);
+
   if (!doc) return null;
   const totals = calcTotal(doc.items);
   const esFactura = doc.tipo === "Factura";
@@ -1063,9 +1129,9 @@ function PrintPreview({ doc, onClose }) {
         <div className="hw-paper-wrap">
           {formato === "carta" ? (
             <div className="hw-print-paper hw-paper-carta" ref={paperRef}>
-              <div className="hw-paper-h1">{BUSINESS.nombre}</div>
-              <div>{BUSINESS.direccion}</div>
-              <div>Tel/WhatsApp: {BUSINESS.telefono}</div>
+              <div className="hw-paper-h1">{negocio.nombre}</div>
+              <div>{negocio.direccion}</div>
+              <div>Tel/WhatsApp: {negocio.telefono}</div>
               <div className="hw-paper-line" />
               <div style={{ fontWeight: 700 }}>{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
@@ -1091,13 +1157,14 @@ function PrintPreview({ doc, onClose }) {
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center", color: "#777" }}>¡Gracias por su preferencia!</div>
+              <div style={{ textAlign: "center", marginTop: 8 }}><svg ref={barcodeRef}></svg></div>
             </div>
           ) : (
             <div className="hw-print-paper hw-paper-ticket" ref={paperRef}>
               <div style={{ textAlign: "center" }}>
-                <div className="hw-paper-h1" style={{ fontSize: 12 }}>{BUSINESS.nombre}</div>
-                <div>{BUSINESS.direccion}</div>
-                <div>{BUSINESS.telefono}</div>
+                <div className="hw-paper-h1" style={{ fontSize: 12 }}>{negocio.nombre}</div>
+                <div>{negocio.direccion}</div>
+                <div>{negocio.telefono}</div>
               </div>
               <div className="hw-paper-line" />
               <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
@@ -1121,6 +1188,7 @@ function PrintPreview({ doc, onClose }) {
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
+              <div style={{ textAlign: "center", marginTop: 8 }}><svg ref={barcodeRef}></svg></div>
             </div>
           )}
         </div>
@@ -1138,7 +1206,7 @@ function PrintPreview({ doc, onClose }) {
   );
 }
 
-function Facturacion({ facturas, setFacturas, clientes, productos, setProductos }) {
+function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -1203,7 +1271,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos 
   function whatsappFactura(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId) || clientes.find((c) => c.nombre === f.clienteNombre);
     const total = calcTotal(f.items).total;
-    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de Ingeniería y Tecnología Henríquez.\nFecha: ${f.fecha}\nTotal: ${money(total)}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
+    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${f.fecha}\nTotal: ${money(total)}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -1279,7 +1347,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos 
           </div>
         </div>
       )}
-      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} />
+      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} />
     </div>
   );
 }
@@ -1290,7 +1358,7 @@ function nextCot(cotizaciones) {
   return "COT-" + String(max + 1).padStart(4, "0");
 }
 
-function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setProductos, setFacturas, setTab }) {
+function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setProductos, setFacturas, setTab, negocio }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -1348,7 +1416,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   function whatsappCotizacion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
     const total = calcTotal(c.items).total;
-    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de Ingeniería y Tecnología Henríquez.\nFecha: ${c.fecha}\nTotal: ${money(total)}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
+    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${c.fecha}\nTotal: ${money(total)}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -1411,7 +1479,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
           </div>
         </div>
       )}
-      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} />
+      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} />
     </div>
   );
 }
