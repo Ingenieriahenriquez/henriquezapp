@@ -11,6 +11,12 @@ const CAMEL_TO_SNAKE = {
   esAdmin: "es_admin",
   tipoComprobante: "tipo_comprobante",
   ncfManual: "ncf_manual",
+  montoApertura: "monto_apertura",
+  montoCierre: "monto_cierre",
+  montoEsperado: "monto_esperado",
+  usuarioEmail: "usuario_email",
+  sesionId: "sesion_id",
+  fechaHora: "fecha_hora",
 };
 const SNAKE_TO_CAMEL = Object.fromEntries(
   Object.entries(CAMEL_TO_SNAKE).map(([camel, snake]) => [snake, camel])
