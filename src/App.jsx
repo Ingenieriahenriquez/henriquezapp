@@ -692,7 +692,7 @@ function calcTotal(items) {
   return { sub, itbis, total: sub + itbis };
 }
 
-const CAT_COLORS = { "Cámaras": "#3F6FD1", "Acceso": "#0F6E84", "Motores": "#E0791C", "Cerco eléctrico": "#C24F3A", "Solar": "#2F9E67", "Electrodomésticos": "#A6456B", "Eléctricos": "#B08D2B", "Redes y cableado": "#4A6FA1", "Desarrollo / Software": "#6B4FB0", "Computación / Soporte técnico": "#2A8F9E", "Herramientas": "#6E6E6E", "Servicios": "#8B5FBF", "Otro": "#8B93A1" };
+const CAT_COLORS = { "Cámaras": "#3F6FD1", "Acceso": "#0F6E84", "Motores": "#E0791C", "Cerco eléctrico": "#C24F3A", "Solar": "#2F9E67", "Electrodomésticos": "#A6456B", "Eléctricos": "#B08D2B", "Redes y cableado": "#4A6FA1", "Desarrollo / Software": "#6B4FB0", "Computación / Soporte técnico": "#2A8F9E", "Herramientas": "#6E6E6E", "Servicio de instalación y configuración": "#3F8F5C", "Servicios": "#8B5FBF", "Otro": "#8B93A1" };
 
 function categoriaDe(nombre, productos) {
   const p = productos.find((p) => p.nombre === nombre);
@@ -2069,7 +2069,7 @@ function Inventario({ productos, setProductos }) {
             <FieldRow label="Categoría">
               <select className="hw-select" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
                 <option value="">Seleccionar...</option>
-                <option>Cámaras</option><option>Acceso</option><option>Motores</option><option>Cerco eléctrico</option><option>Solar</option><option>Electrodomésticos</option><option>Eléctricos</option><option>Redes y cableado</option><option>Desarrollo / Software</option><option>Computación / Soporte técnico</option><option>Herramientas</option><option>Otro</option>
+                <option>Cámaras</option><option>Acceso</option><option>Motores</option><option>Cerco eléctrico</option><option>Solar</option><option>Electrodomésticos</option><option>Eléctricos</option><option>Redes y cableado</option><option>Desarrollo / Software</option><option>Computación / Soporte técnico</option><option>Herramientas</option><option>Servicio de instalación y configuración</option><option>Otro</option>
               </select>
             </FieldRow>
             <FieldRow label="Costo"><input className="hw-input" type="number" value={form.costo} onChange={(e) => setForm({ ...form, costo: Number(e.target.value) })} /></FieldRow>
