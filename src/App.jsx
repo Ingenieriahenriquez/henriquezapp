@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
@@ -97,7 +97,7 @@ const NAV = [
   { id: "inventario", label: "Inventario", icon: Package },
   { id: "reportes", label: "Reportes", icon: BarChart3 },
   { id: "usuarios", label: "Usuarios", icon: UserCog },
-  { id: "codigobarras", label: "Código de barras", icon: Barcode },
+  { id: "codigobarras", label: "Código de barras · Consulta", icon: Barcode },
   { id: "abonos", label: "Abonos", icon: Coins },
   { id: "graficas", label: "Gráficas", icon: LineChart },
   { id: "caja", label: "Caja", icon: Banknote },
@@ -125,6 +125,7 @@ function CodigoBarras({ productos }) {
   const [resultado, setResultado] = useState(null);
   const [historial, setHistorial] = useState([]);
   const [noEncontrado, setNoEncontrado] = useState(false);
+  const [etiquetaProducto, setEtiquetaProducto] = useState(null);
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -173,8 +174,11 @@ function CodigoBarras({ productos }) {
             <div className="hw-card"><div className="hw-kpi-label">Costo</div><div className="hw-kpi-value">{money(resultado.costo)}</div></div>
             <div className="hw-card"><div className="hw-kpi-label">Stock</div><div className="hw-kpi-value" style={{ color: resultado.stock <= resultado.minimo ? "var(--red)" : undefined }}>{resultado.stock}</div></div>
           </div>
+          <button className="hw-btn ghost small" style={{ marginTop: 14 }} onClick={() => setEtiquetaProducto(resultado)}><Printer size={13} /> Imprimir etiqueta (Zebra)</button>
         </div>
       )}
+
+      <EtiquetaPreview producto={etiquetaProducto} onClose={() => setEtiquetaProducto(null)} />
 
       {historial.length > 0 && (
         <div className="hw-panel">
@@ -705,7 +709,7 @@ const TILES = [
   { id: "ordenes", label: "Órdenes de\ntrabajo", icon: Hammer, from: "#1D9A7C", to: "#116651" },
   { id: "reportes", label: "Reportes", icon: BarChart3, from: "#3F8FE0", to: "#2B67AC" },
   { id: "usuarios", label: "Usuarios", icon: UserCog, from: "#6B7280", to: "#454A52" },
-  { id: "codigobarras", label: "Código de\nbarras", icon: Barcode, from: "#1F2937", to: "#0F1520" },
+  { id: "codigobarras", label: "Código de\nbarras · Consulta", icon: Barcode, from: "#1F2937", to: "#0F1520" },
   { id: "abonos", label: "Abonos", icon: Coins, from: "#C9A227", to: "#96790E" },
   { id: "graficas", label: "Gráficas", icon: LineChart, from: "#2FA6A6", to: "#1E7A7A" },
   { id: "caja", label: "Caja", icon: Banknote, from: "#2F9E67", to: "#1E7449" },
@@ -1178,6 +1182,51 @@ function triggerPrint(formato) {
     ? "@page { size: 80mm auto; margin: 4mm; }"
     : "@page { size: letter; margin: 14mm; }";
   setTimeout(() => window.print(), 50);
+}
+
+function triggerPrintLabel() {
+  let styleEl = document.getElementById("hw-dynamic-page-style");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "hw-dynamic-page-style";
+    document.head.appendChild(styleEl);
+  }
+  styleEl.innerHTML = "@page { size: 2in 1in; margin: 1.5mm; }";
+  setTimeout(() => window.print(), 50);
+}
+
+function EtiquetaPreview({ producto, onClose }) {
+  const barcodeRef = useRef(null);
+  useEffect(() => {
+    if (barcodeRef.current && producto?.codigo) {
+      try {
+        JsBarcode(barcodeRef.current, producto.codigo, { format: "CODE128", width: 1.3, height: 30, displayValue: true, fontSize: 9, margin: 2 });
+      } catch (e) { console.error("No se pudo generar el código de barras de la etiqueta:", e); }
+    }
+  }, [producto]);
+
+  if (!producto) return null;
+  return (
+    <div className="hw-modal-overlay" onClick={onClose}>
+      <div className="hw-modal" style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
+        <div className="hw-modal-head"><div className="hw-modal-title">Etiqueta para imprimir</div><button className="hw-close" onClick={onClose}><X size={18} /></button></div>
+        {!producto.codigo ? (
+          <div style={{ color: "var(--red)", fontSize: 13.5, padding: "10px 0" }}>Este producto no tiene un código asignado. Agrégale uno en Inventario primero.</div>
+        ) : (
+          <>
+            <div className="hw-print-paper" style={{ border: "1px dashed #ccc", padding: 12, textAlign: "center", margin: "10px 0", width: "2in", boxSizing: "border-box" }}>
+              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, wordBreak: "break-word" }}>{producto.nombre}</div>
+              <svg ref={barcodeRef}></svg>
+            </div>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={triggerPrintLabel}><Printer size={15} /> Imprimir etiqueta</button>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
+              En el diálogo de impresión, elige tu impresora Zebra. El tamaño ya está ajustado para etiqueta pequeña (2 x 1 pulgadas) — puedes cambiarlo ahí mismo si tu etiqueta es de otro tamaño.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PrintPreview({ doc, onClose, negocio }) {
@@ -1942,6 +1991,7 @@ function Inventario({ productos, setProductos }) {
   const [editingId, setEditingId] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [form, setForm] = useState({ nombre: "", codigo: "", categoria: "", costo: 0, precio: 0, stock: 0, minimo: 2 });
+  const [etiquetaProducto, setEtiquetaProducto] = useState(null);
 
   const filtrados = productos.filter((p) => {
     const q = busqueda.trim().toLowerCase();
@@ -1999,7 +2049,10 @@ function Inventario({ productos, setProductos }) {
                 <td>{money(p.costo)}</td>
                 <td>{money(p.precio)}</td>
                 <td>{p.stock <= p.minimo ? <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--red)", fontWeight: 600 }}><AlertTriangle size={13} /> {p.stock}</span> : p.stock}</td>
-                <td><button className="hw-btn ghost small" onClick={() => abrirEdicion(p)}><Edit2 size={12} /> Editar</button></td>
+                <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button className="hw-btn ghost small" onClick={() => abrirEdicion(p)}><Edit2 size={12} /> Editar</button>
+                  <button className="hw-btn ghost small" onClick={() => setEtiquetaProducto(p)}><Printer size={12} /> Etiqueta</button>
+                </td>
               </tr>
             ))}
             {filtrados.length === 0 && <tr><td colSpan={7} className="hw-empty">Sin productos encontrados</td></tr>}
@@ -2027,6 +2080,7 @@ function Inventario({ productos, setProductos }) {
           </div>
         </div>
       )}
+      <EtiquetaPreview producto={etiquetaProducto} onClose={() => setEtiquetaProducto(null)} />
     </div>
   );
 }
