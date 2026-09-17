@@ -4,6 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
 import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -121,7 +122,7 @@ function Proximamente({ titulo }) {
 
 function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
   const actual = negocioConfig[0] || BUSINESS;
-  const [form, setForm] = useState({ nombre: actual.nombre || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
+  const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
   const [guardado, setGuardado] = useState(false);
 
   function guardar() {
@@ -140,6 +141,7 @@ function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
         <div className="hw-header"><div><div className="hw-title">Ajustes</div><div className="hw-sub">Información del negocio</div></div></div>
         <div className="hw-panel" style={{ padding: 20 }}>
           <div><b>Nombre:</b> {actual.nombre}</div>
+          {actual.eslogan && <div><b>Eslogan:</b> {actual.eslogan}</div>}
           <div><b>Dirección:</b> {actual.direccion}</div>
           <div><b>Teléfono:</b> {actual.telefono}</div>
           {actual.rnc && <div><b>RNC:</b> {actual.rnc}</div>}
@@ -155,6 +157,9 @@ function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
       <div className="hw-panel" style={{ padding: 20, maxWidth: 480 }}>
         <FieldRow label="Nombre del negocio">
           <input className="hw-input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+        </FieldRow>
+        <FieldRow label="Eslogan (opcional)">
+          <input className="hw-input" placeholder="Ej. Seguridad y tecnología para tu hogar y negocio" value={form.eslogan} onChange={(e) => setForm({ ...form, eslogan: e.target.value })} />
         </FieldRow>
         <FieldRow label="Dirección">
           <input className="hw-input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
@@ -540,14 +545,14 @@ function Panel({ session }) {
       <div className="hw-mobile-topbar">
         <div>
           <div className="hw-mobile-topbar-name">{negocio.nombre}</div>
-          <div className="hw-mobile-topbar-sub">Sistema de facturación</div>
+          <div className="hw-mobile-topbar-sub">{negocio.eslogan || "Sistema de facturación"}</div>
         </div>
       </div>
 
       <aside className="hw-sidebar">
         <div className="hw-brand">
           <div className="hw-brand-name">{negocio.nombre}</div>
-          <div className="hw-brand-sub">Henríquez System v0.2</div>
+          <div className="hw-brand-sub">{negocio.eslogan || "Henríquez System v0.2"}</div>
         </div>
         <nav className="hw-nav">
           {NAV.filter((n) => puedeVer(n.id)).map((n) => (
@@ -666,7 +671,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
         <div className="hw-hero-top">
           <div>
             <div className="hw-hero-brand">Henríquez System <span className="hw-hero-badge">v0.2</span></div>
-            <div className="hw-hero-sub">{negocio.nombre} · {negocio.direccion}</div>
+            <div className="hw-hero-sub">{negocio.eslogan || (negocio.nombre + " · " + negocio.direccion)}</div>
           </div>
         </div>
         <div className="hw-tiles">
@@ -1100,12 +1105,22 @@ function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
   const paperRef = useRef(null);
   const barcodeRef = useRef(null);
+  const qrRef = useRef(null);
 
   useEffect(() => {
     if (barcodeRef.current && doc?.numero) {
       try {
         JsBarcode(barcodeRef.current, doc.numero, { format: "CODE128", width: 1.5, height: 36, displayValue: true, fontSize: 11, margin: 6 });
       } catch (e) { console.error("No se pudo generar el código de barras:", e); }
+    }
+  }, [doc?.numero, formato]);
+
+  useEffect(() => {
+    if (qrRef.current && doc?.numero) {
+      const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
+      QRCode.toCanvas(qrRef.current, contenido, { width: 90, margin: 1 }, (err) => {
+        if (err) console.error("No se pudo generar el código QR:", err);
+      });
     }
   }, [doc?.numero, formato]);
 
@@ -1130,6 +1145,7 @@ function PrintPreview({ doc, onClose, negocio }) {
           {formato === "carta" ? (
             <div className="hw-print-paper hw-paper-carta" ref={paperRef}>
               <div className="hw-paper-h1">{negocio.nombre}</div>
+              {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 11.5, color: "#666" }}>{negocio.eslogan}</div>}
               <div>{negocio.direccion}</div>
               <div>Tel/WhatsApp: {negocio.telefono}</div>
               <div className="hw-paper-line" />
@@ -1163,6 +1179,7 @@ function PrintPreview({ doc, onClose, negocio }) {
             <div className="hw-print-paper hw-paper-ticket" ref={paperRef}>
               <div style={{ textAlign: "center" }}>
                 <div className="hw-paper-h1" style={{ fontSize: 12 }}>{negocio.nombre}</div>
+                {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666" }}>{negocio.eslogan}</div>}
                 <div>{negocio.direccion}</div>
                 <div>{negocio.telefono}</div>
               </div>
@@ -1189,6 +1206,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
               <div style={{ textAlign: "center", marginTop: 8 }}><svg ref={barcodeRef}></svg></div>
+              <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
             </div>
           )}
         </div>
