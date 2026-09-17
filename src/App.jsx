@@ -40,6 +40,13 @@ function pastDate(daysAgo) {
   return d.toISOString().slice(0, 10);
 }
 
+function formatearFechaHora(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString("es-DO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
 const seedClientes = [
   { id: uid(), nombre: "Carlos Peña", negocio: "Gimnasio Fuerza Total", rnc: "1-31-45678-9", telefono: "829-555-0142", correo: "carlos@fuerzatotal.do", direccion: "Av. 27 de Febrero, Santiago", nota: "Cliente de instalación de cámaras + control de acceso." },
   { id: uid(), nombre: "Yolanda Reyes", negocio: "Clínica Dental Reyes", rnc: "1-30-98212-3", telefono: "849-555-8890", correo: "info@clinicareyes.do", direccion: "Los Jardines, Santiago", nota: "Interesada en sistema de citas a medida." },
@@ -1376,7 +1383,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               <div className="hw-paper-line" />
               <div style={{ fontWeight: 700 }}>{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
-              <div>Fecha: {doc.fecha}</div>
+              <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
               <div className="hw-paper-line" />
               <div><b>Cliente:</b> {doc.clienteNombre}</div>
               {doc.clienteNegocio && <div>{doc.clienteNegocio}</div>}
@@ -1411,7 +1418,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               <div className="hw-paper-line" />
               <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
-              <div>Fecha: {doc.fecha}</div>
+              <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
               <div>Cliente: {doc.clienteNombre}</div>
               <div className="hw-paper-line" />
               {doc.items.map((it, i) => (
@@ -1489,7 +1496,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   function guardar() {
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente || items.every((i) => !i.nombre)) return;
-    const esManual = tipoComprobante === "Factura Electrónica";
+    const esManual = tipoComprobante !== "Consumidor Final" && tipoComprobante !== "Factura de Consumo";
     if (esManual && !ncfManualTexto.trim()) { alert("Escribe el número de comprobante para este tipo de factura."); return; }
     if (editingId) {
       setFacturas(facturas.map((f) => (f.id === editingId ? {
@@ -1515,7 +1522,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function abrirImpresion(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId);
-    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis });
+    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn });
   }
 
   function whatsappFactura(f) {
@@ -1568,12 +1575,18 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
               <select className="hw-select" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)}>
                 <option>Consumidor Final</option>
                 <option>Factura de Consumo</option>
-                <option>Factura Electrónica</option>
+                <option>Factura Electrónica (e-CF 32 · Consumo)</option>
+                <option>Factura de Régimen Especial (e-CF 44)</option>
+                <option>Factura Gubernamental (e-CF 45)</option>
               </select>
             </FieldRow>
-            {tipoComprobante === "Factura Electrónica" && (
-              <FieldRow label="Número de comprobante (e-CF) *">
-                <input className="hw-input" placeholder="Ej. E310000000001" value={ncfManualTexto} onChange={(e) => setNcfManualTexto(e.target.value)} />
+            {tipoComprobante !== "Consumidor Final" && tipoComprobante !== "Factura de Consumo" && (
+              <FieldRow label="Número de comprobante (e-NCF) *">
+                <input className="hw-input" placeholder={
+                  tipoComprobante.includes("44") ? "Ej. E440000000001" :
+                  tipoComprobante.includes("45") ? "Ej. E450000000001" : "Ej. E320000000001"
+                } value={ncfManualTexto} onChange={(e) => setNcfManualTexto(e.target.value)} />
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Este número lo genera tu sistema de facturación electrónica (aún no está integrado aquí) — escríbelo manualmente por ahora.</div>
               </FieldRow>
             )}
             <FieldRow label="Cliente *">
@@ -1672,7 +1685,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: c.items });
+    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: c.items, creadoEn: c.creadoEn });
   }
 
   function whatsappCotizacion(c) {
