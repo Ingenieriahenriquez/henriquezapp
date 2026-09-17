@@ -199,6 +199,92 @@ function CodigoBarras({ productos }) {
   );
 }
 
+function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
+  const [facturaId, setFacturaId] = useState("");
+  const [monto, setMonto] = useState("");
+  const [metodo, setMetodo] = useState("Efectivo");
+  const [nota, setNota] = useState("");
+
+  const pendientes = facturas
+    .filter((f) => f.estado !== "Anulada")
+    .map((f) => {
+      const total = calcTotal(f.items).total;
+      const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
+      return { ...f, total, pagado, pendiente: total - pagado };
+    })
+    .filter((f) => f.pendiente > 0.009);
+
+  function registrarAbono() {
+    const f = pendientes.find((f) => f.id === facturaId);
+    if (!f || !monto) return;
+    const nuevoAbono = { id: uid(), facturaId: f.id, monto: Number(monto), fecha: new Date().toISOString().slice(0, 10), metodo, nota };
+    setAbonosPagos([...abonosPagos, nuevoAbono]);
+    if (f.pagado + Number(monto) >= f.total - 0.01) {
+      setFacturas(facturas.map((x) => (x.id === f.id ? { ...x, estado: "Pagada" } : x)));
+    }
+    setFacturaId("");
+    setMonto("");
+    setNota("");
+  }
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Abonos</div><div className="hw-sub">Pagos parciales a facturas a crédito</div></div>
+      </div>
+
+      <div className="hw-panel" style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>Registrar abono</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select className="hw-select" value={facturaId} onChange={(e) => setFacturaId(e.target.value)} style={{ flex: 1, minWidth: 220 }}>
+            <option value="">Selecciona una factura pendiente...</option>
+            {pendientes.map((f) => <option key={f.id} value={f.id}>{f.ncf} · {f.clienteNombre} · Pendiente: {money(f.pendiente)}</option>)}
+          </select>
+          <input className="hw-input" type="number" placeholder="Monto" value={monto} onChange={(e) => setMonto(e.target.value)} style={{ maxWidth: 130 }} />
+          <select className="hw-select" value={metodo} onChange={(e) => setMetodo(e.target.value)} style={{ maxWidth: 150 }}>
+            <option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option>
+          </select>
+          <input className="hw-input" placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+          <button className="hw-btn" onClick={registrarAbono}><Plus size={14} /> Registrar</button>
+        </div>
+      </div>
+
+      <div className="hw-panel" style={{ marginBottom: 16 }}>
+        <table className="hw-table hw-t-abonospend">
+          <thead><tr><th>NCF</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead>
+          <tbody>
+            {pendientes.map((f) => (
+              <tr key={f.id}>
+                <td className="hw-mono">{f.ncf}</td><td>{f.clienteNombre}</td><td>{money(f.total)}</td><td>{money(f.pagado)}</td>
+                <td style={{ fontWeight: 600, color: "var(--red)" }}>{money(f.pendiente)}</td>
+              </tr>
+            ))}
+            {pendientes.length === 0 && <tr><td colSpan={5} className="hw-empty">No hay facturas con saldo pendiente</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="hw-panel">
+        <div style={{ padding: "14px 16px", fontWeight: 600 }}>Historial de abonos</div>
+        <table className="hw-table hw-t-abonoshist">
+          <thead><tr><th>Fecha</th><th>Factura</th><th>Monto</th><th>Método</th><th>Nota</th></tr></thead>
+          <tbody>
+            {abonosPagos.slice().reverse().map((a) => {
+              const f = facturas.find((f) => f.id === a.facturaId);
+              return (
+                <tr key={a.id}>
+                  <td>{a.fecha}</td><td className="hw-mono">{f?.ncf || "—"}</td><td>{money(a.monto)}</td><td>{a.metodo}</td><td>{a.nota}</td>
+                </tr>
+              );
+            })}
+            {abonosPagos.length === 0 && <tr><td colSpan={5} className="hw-empty">Sin abonos registrados todavía</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
@@ -387,6 +473,7 @@ function Panel({ session }) {
   const [cajaSesiones, setCajaSesiones] = useSupabaseState("caja_sesiones");
   const [cajaMovimientos, setCajaMovimientos] = useSupabaseState("caja_movimientos");
   const [negocioConfig, setNegocioConfig] = useSupabaseState("negocio_config");
+  const [abonosPagos, setAbonosPagos] = useSupabaseState("abonos_pagos");
   const negocio = negocioConfig[0] || BUSINESS;
 
   const miEmail = session?.user?.email || "";
@@ -614,6 +701,16 @@ function Panel({ session }) {
           .hw-t-scanhist td:nth-of-type(2)::before{content:"Código: ";font-weight:600;color:var(--muted);}
           .hw-t-scanhist td:nth-of-type(3)::before{content:"Precio: ";font-weight:600;color:var(--muted);}
           .hw-t-scanhist td:nth-of-type(4)::before{content:"Stock: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonospend td:nth-of-type(1):not(.hw-empty)::before{content:"NCF: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonospend td:nth-of-type(2)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonospend td:nth-of-type(3)::before{content:"Total: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonospend td:nth-of-type(4)::before{content:"Pagado: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonospend td:nth-of-type(5)::before{content:"Pendiente: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonoshist td:nth-of-type(1):not(.hw-empty)::before{content:"Fecha: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonoshist td:nth-of-type(2)::before{content:"Factura: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonoshist td:nth-of-type(3)::before{content:"Monto: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonoshist td:nth-of-type(4)::before{content:"Método: ";font-weight:600;color:var(--muted);}
+          .hw-t-abonoshist td:nth-of-type(5)::before{content:"Nota: ";font-weight:600;color:var(--muted);}
           .hw-modal-overlay{padding:10px;align-items:flex-end;}
           .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
@@ -676,7 +773,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Proximamente titulo="Reportes" /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
-        <div style={{ display: tab === "abonos" ? "block" : "none" }}><Proximamente titulo="Abonos" /></div>
+        <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
         <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Ajustes negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} /></div>
