@@ -208,7 +208,7 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   const pendientes = facturas
     .filter((f) => f.estado !== "Anulada")
     .map((f) => {
-      const total = calcTotal(f.items).total;
+      const total = calcTotal(f.items, f.aplicaItbis).total;
       const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
       return { ...f, total, pagado, pendiente: total - pagado };
     })
@@ -783,9 +783,9 @@ function Panel({ session }) {
   );
 }
 
-function calcTotal(items) {
+function calcTotal(items, aplicaItbis = true) {
   const sub = items.reduce((s, i) => s + i.cantidad * i.precio, 0);
-  const itbis = sub * ITBIS;
+  const itbis = aplicaItbis ? sub * ITBIS : 0;
   return { sub, itbis, total: sub + itbis };
 }
 
@@ -818,14 +818,14 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
   const [qc, setQc] = useState("");
   const [qa, setQa] = useState("");
   const mesFacturas = facturas.length;
-  const ingresos = facturas.reduce((s, f) => s + calcTotal(f.items).total, 0);
+  const ingresos = facturas.reduce((s, f) => s + calcTotal(f.items, f.aplicaItbis).total, 0);
   const pendientesCotiz = cotizaciones.filter((c) => c.estado === "Pendiente").length;
   const stockBajo = productos.filter((p) => p.stock <= p.minimo);
 
   const trendData = useMemo(() => {
     const byDate = {};
     facturas.forEach((f) => {
-      const t = calcTotal(f.items).total;
+      const t = calcTotal(f.items, f.aplicaItbis).total;
       byDate[f.fecha] = (byDate[f.fecha] || 0) + t;
     });
     return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([fecha, total]) => ({
@@ -998,7 +998,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
             <thead><tr><th>NCF</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody>
               {facturas.slice(-5).reverse().map((f) => {
-                const { total } = calcTotal(f.items);
+                const { total } = calcTotal(f.items, f.aplicaItbis);
                 return (
                   <tr key={f.id}>
                     <td><span className="hw-ncf-stub">{f.ncf}</span></td>
@@ -1107,7 +1107,7 @@ function Clientes({ clientes, setClientes, facturas }) {
                 {historial.map((f) => (
                   <div key={f.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
                     <span className="hw-mono" style={{ fontSize: 12 }}>{f.ncf}</span>
-                    <span>{money(calcTotal(f.items).total)}</span>
+                    <span>{money(calcTotal(f.items, f.aplicaItbis).total)}</span>
                   </div>
                 ))}
               </div>
@@ -1350,7 +1350,7 @@ function PrintPreview({ doc, onClose, negocio }) {
   }, [doc?.numero, formato]);
 
   if (!doc) return null;
-  const totals = calcTotal(doc.items);
+  const totals = calcTotal(doc.items, doc.aplicaItbis);
   const esFactura = doc.tipo === "Factura";
 
   return (
@@ -1392,7 +1392,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               </table>
               <div className="hw-paper-line" />
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
-              <div className="hw-paper-total-row"><span>ITBIS (18%)</span><span>{money(totals.itbis)}</span></div>
+              <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Método de pago: {doc.metodo}</div>}
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
@@ -1425,7 +1425,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               ))}
               <div className="hw-paper-line" />
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
-              <div className="hw-paper-total-row"><span>ITBIS</span><span>{money(totals.itbis)}</span></div>
+              <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
               <div className="hw-paper-line" />
@@ -1456,16 +1456,18 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [clienteId, setClienteId] = useState("");
   const [metodo, setMetodo] = useState("Efectivo");
   const [estadoPago, setEstadoPago] = useState("Pagada");
+  const [aplicaItbis, setAplicaItbis] = useState(true);
   const [tipoComprobante, setTipoComprobante] = useState("Consumidor Final");
   const [ncfManualTexto, setNcfManualTexto] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
-  const totals = calcTotal(items.filter((i) => i.nombre));
+  const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
 
   function abrirNueva() {
     setEditingId(null);
     setClienteId("");
     setMetodo("Efectivo");
     setEstadoPago("Pagada");
+    setAplicaItbis(true);
     setTipoComprobante("Consumidor Final");
     setNcfManualTexto("");
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
@@ -1477,6 +1479,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setClienteId(f.clienteId || clientes.find((c) => c.nombre === f.clienteNombre)?.id || "");
     setMetodo(f.metodo);
     setEstadoPago(f.estado === "Pendiente" ? "Pendiente" : "Pagada");
+    setAplicaItbis(f.aplicaItbis !== false);
     setTipoComprobante(f.tipoComprobante || "Consumidor Final");
     setNcfManualTexto(f.ncfManual ? f.ncf : "");
     setItems(f.items);
@@ -1491,13 +1494,13 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     if (editingId) {
       setFacturas(facturas.map((f) => (f.id === editingId ? {
         ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), metodo,
-        estado: f.estado === "Anulada" ? f.estado : estadoPago,
+        estado: f.estado === "Anulada" ? f.estado : estadoPago, aplicaItbis,
         tipoComprobante, ncfManual: esManual, ncf: esManual ? ncfManualTexto.trim() : f.ncf,
       } : f)));
     } else {
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0,
+        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis,
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
@@ -1512,12 +1515,12 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function abrirImpresion(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId);
-    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante });
+    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis });
   }
 
   function whatsappFactura(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId) || clientes.find((c) => c.nombre === f.clienteNombre);
-    const total = calcTotal(f.items).total;
+    const total = calcTotal(f.items, f.aplicaItbis).total;
     const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${f.fecha}\nTotal: ${money(total)}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
@@ -1534,7 +1537,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
           <thead><tr><th>NCF</th><th>Cliente</th><th>Fecha</th><th>Método</th><th>Total</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {facturas.slice().reverse().map((f) => {
-              const t = calcTotal(f.items);
+              const t = calcTotal(f.items, f.aplicaItbis);
               return (
                 <tr key={f.id}>
                   <td><span className="hw-ncf-stub">{f.ncf}</span></td>
@@ -1590,10 +1593,16 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
                 <option value="Pendiente">Pendiente (a crédito)</option>
               </select>
             </FieldRow>
+            <FieldRow label="ITBIS">
+              <select className="hw-select" value={aplicaItbis ? "con" : "sin"} onChange={(e) => setAplicaItbis(e.target.value === "con")}>
+                <option value="con">Con ITBIS (18%)</option>
+                <option value="sin">Sin ITBIS (exento)</option>
+              </select>
+            </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
               <div className="hw-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
-              <div className="hw-total-row"><span>ITBIS (18%)</span><span>{money(totals.itbis)}</span></div>
+              <div className="hw-total-row"><span>{aplicaItbis ? "ITBIS (18%)" : "ITBIS (exento)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardar}>{editingId ? "Actualizar factura" : "Generar factura"}</button>
@@ -1963,7 +1972,7 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
 
   const movSesion = sesionAbierta ? movimientos.filter((m) => m.sesionId === sesionAbierta.id) : [];
   const ventasEfectivo = sesionAbierta
-    ? facturas.filter((f) => f.fecha === sesionAbierta.fecha && f.metodo === "Efectivo" && f.estado !== "Anulada").reduce((s, f) => s + calcTotal(f.items).total, 0)
+    ? facturas.filter((f) => f.fecha === sesionAbierta.fecha && f.metodo === "Efectivo" && f.estado !== "Anulada").reduce((s, f) => s + calcTotal(f.items, f.aplicaItbis).total, 0)
     : 0;
   const entradas = movSesion.filter((m) => m.tipo === "Entrada").reduce((s, m) => s + Number(m.monto), 0);
   const salidas = movSesion.filter((m) => m.tipo !== "Entrada").reduce((s, m) => s + Number(m.monto), 0);
