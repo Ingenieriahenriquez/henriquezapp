@@ -1455,6 +1455,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [printDoc, setPrintDoc] = useState(null);
   const [clienteId, setClienteId] = useState("");
   const [metodo, setMetodo] = useState("Efectivo");
+  const [estadoPago, setEstadoPago] = useState("Pagada");
   const [tipoComprobante, setTipoComprobante] = useState("Consumidor Final");
   const [ncfManualTexto, setNcfManualTexto] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
@@ -1464,6 +1465,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setEditingId(null);
     setClienteId("");
     setMetodo("Efectivo");
+    setEstadoPago("Pagada");
     setTipoComprobante("Consumidor Final");
     setNcfManualTexto("");
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
@@ -1474,6 +1476,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setEditingId(f.id);
     setClienteId(f.clienteId || clientes.find((c) => c.nombre === f.clienteNombre)?.id || "");
     setMetodo(f.metodo);
+    setEstadoPago(f.estado === "Pendiente" ? "Pendiente" : "Pagada");
     setTipoComprobante(f.tipoComprobante || "Consumidor Final");
     setNcfManualTexto(f.ncfManual ? f.ncf : "");
     setItems(f.items);
@@ -1488,12 +1491,13 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     if (editingId) {
       setFacturas(facturas.map((f) => (f.id === editingId ? {
         ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), metodo,
+        estado: f.estado === "Anulada" ? f.estado : estadoPago,
         tipoComprobante, ncfManual: esManual, ncf: esManual ? ncfManualTexto.trim() : f.ncf,
       } : f)));
     } else {
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), metodo, estado: "Pagada", abono: 0,
+        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0,
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
@@ -1578,6 +1582,12 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
             <FieldRow label="Método de pago">
               <select className="hw-select" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
                 <option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option>
+              </select>
+            </FieldRow>
+            <FieldRow label="Estado de pago">
+              <select className="hw-select" value={estadoPago} onChange={(e) => setEstadoPago(e.target.value)}>
+                <option value="Pagada">Pagada (de contado)</option>
+                <option value="Pendiente">Pendiente (a crédito)</option>
               </select>
             </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
