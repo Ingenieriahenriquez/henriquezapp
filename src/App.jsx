@@ -120,6 +120,81 @@ function Proximamente({ titulo }) {
   );
 }
 
+function CodigoBarras({ productos }) {
+  const [texto, setTexto] = useState("");
+  const [resultado, setResultado] = useState(null);
+  const [historial, setHistorial] = useState([]);
+  const [noEncontrado, setNoEncontrado] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  function buscar(e) {
+    if (e.key !== "Enter") return;
+    const q = texto.trim().toLowerCase();
+    if (!q) return;
+    const exacto = productos.find((p) => p.codigo?.toLowerCase() === q);
+    const porNombre = !exacto ? productos.find((p) => p.nombre?.toLowerCase().includes(q)) : null;
+    const encontrado = exacto || porNombre;
+    if (encontrado) {
+      setResultado(encontrado);
+      setNoEncontrado(false);
+      setHistorial((prev) => [encontrado, ...prev.filter((p) => p.id !== encontrado.id)].slice(0, 8));
+    } else {
+      setResultado(null);
+      setNoEncontrado(true);
+    }
+    setTexto("");
+  }
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Código de barras</div><div className="hw-sub">Escanea o escribe un código o nombre para consultar el producto</div></div>
+      </div>
+
+      <div className="hw-panel" style={{ padding: 20, marginBottom: 16 }}>
+        <input ref={inputRef} className="hw-input" style={{ fontSize: 17, padding: "13px 16px" }} placeholder="Escanea aquí con el lector, o escribe y presiona Enter..." value={texto} onChange={(e) => setTexto(e.target.value)} onKeyDown={buscar} />
+      </div>
+
+      {noEncontrado && (
+        <div className="hw-panel" style={{ padding: 20, textAlign: "center", color: "var(--red)", marginBottom: 16 }}>
+          No se encontró ningún producto con ese código o nombre.
+        </div>
+      )}
+
+      {resultado && (
+        <div className="hw-panel" style={{ padding: 24, marginBottom: 16 }}>
+          <div style={{ fontSize: 21, fontWeight: 700 }}>{resultado.nombre}</div>
+          <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono',monospace", marginBottom: 14 }}>{resultado.codigo || "Sin código asignado"}</div>
+          <div className="hw-grid">
+            <div className="hw-card"><div className="hw-kpi-label">Categoría</div><div className="hw-kpi-value" style={{ fontSize: 16 }}>{resultado.categoria || "—"}</div></div>
+            <div className="hw-card"><div className="hw-kpi-label">Precio</div><div className="hw-kpi-value">{money(resultado.precio)}</div></div>
+            <div className="hw-card"><div className="hw-kpi-label">Costo</div><div className="hw-kpi-value">{money(resultado.costo)}</div></div>
+            <div className="hw-card"><div className="hw-kpi-label">Stock</div><div className="hw-kpi-value" style={{ color: resultado.stock <= resultado.minimo ? "var(--red)" : undefined }}>{resultado.stock}</div></div>
+          </div>
+        </div>
+      )}
+
+      {historial.length > 0 && (
+        <div className="hw-panel">
+          <div style={{ padding: "14px 16px", fontWeight: 600 }}>Consultados recientemente</div>
+          <table className="hw-table hw-t-scanhist">
+            <thead><tr><th>Producto</th><th>Código</th><th>Precio</th><th>Stock</th></tr></thead>
+            <tbody>
+              {historial.map((p) => (
+                <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => setResultado(p)}>
+                  <td>{p.nombre}</td><td className="hw-mono">{p.codigo || "—"}</td><td>{money(p.precio)}</td><td>{p.stock}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
@@ -531,6 +606,10 @@ function Panel({ session }) {
           .hw-t-cajahist td:nth-of-type(4)::before{content:"Esperado: ";font-weight:600;color:var(--muted);}
           .hw-t-cajahist td:nth-of-type(5)::before{content:"Diferencia: ";font-weight:600;color:var(--muted);}
           .hw-t-cajahist td:nth-of-type(6)::before{content:"Estado: ";font-weight:600;color:var(--muted);}
+          .hw-t-scanhist td:nth-of-type(1):not(.hw-empty)::before{content:"Producto: ";font-weight:600;color:var(--muted);}
+          .hw-t-scanhist td:nth-of-type(2)::before{content:"Código: ";font-weight:600;color:var(--muted);}
+          .hw-t-scanhist td:nth-of-type(3)::before{content:"Precio: ";font-weight:600;color:var(--muted);}
+          .hw-t-scanhist td:nth-of-type(4)::before{content:"Stock: ";font-weight:600;color:var(--muted);}
           .hw-modal-overlay{padding:10px;align-items:flex-end;}
           .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
@@ -592,7 +671,7 @@ function Panel({ session }) {
         </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Proximamente titulo="Reportes" /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
-        <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><Proximamente titulo="Código de barras" /></div>
+        <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Proximamente titulo="Abonos" /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
