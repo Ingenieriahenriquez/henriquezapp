@@ -6,6 +6,7 @@ import { supabase } from "./supabaseClient";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -863,7 +864,7 @@ function Panel({ session }) {
         .hw-print-tabs{display:flex;gap:8px;margin-bottom:16px;}
         .hw-print-tab{flex:1;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s;}
         .hw-print-tab.active{border-color:var(--accent);color:var(--accent2);background:var(--accent-soft);}
-        .hw-paper-wrap{background:#EAEBEF;border-radius:10px;padding:20px;display:flex;justify-content:center;max-height:50vh;overflow-y:auto;}
+        .hw-paper-wrap{background:#EAEBEF;border-radius:10px;padding:14px;display:flex;justify-content:center;max-height:70vh;overflow-y:auto;}
         .hw-paper-carta{background:#fff;width:100%;max-width:380px;padding:22px 20px;font-size:11.5px;box-shadow:0 4px 16px rgba(16,24,39,0.12);}
         .hw-paper-ticket{background:#fff;width:220px;padding:14px 12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;box-shadow:0 4px 16px rgba(16,24,39,0.12);}
         .hw-paper-h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;}
@@ -1575,6 +1576,33 @@ async function guardarComoImagen(nodo, nombreArchivo) {
   }
 }
 
+async function guardarComoPDF(nodo, nombreArchivo, formato) {
+  if (!nodo) return;
+  try {
+    const canvas = await html2canvas(nodo, { scale: 3, backgroundColor: "#ffffff" });
+    const imgData = canvas.toDataURL("image/png");
+    const pxToMm = 25.4 / (96 * 3);
+    const imgWidthMm = canvas.width * pxToMm;
+    const imgHeightMm = canvas.height * pxToMm;
+
+    let pdf;
+    if (formato === "ticket") {
+      pdf = new jsPDF({ unit: "mm", format: [imgWidthMm, imgHeightMm] });
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidthMm, imgHeightMm);
+    } else {
+      pdf = new jsPDF({ unit: "mm", format: "letter" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const drawWidth = pageWidth - 20;
+      const drawHeight = (imgHeightMm * drawWidth) / imgWidthMm;
+      pdf.addImage(imgData, "PNG", 10, 10, drawWidth, drawHeight);
+    }
+    pdf.save(nombreArchivo + ".pdf");
+  } catch (e) {
+    console.error("No se pudo generar el PDF:", e);
+    alert("No se pudo generar el PDF. Prueba con \"Imprimir\" y elige \"Guardar como PDF\" en el diálogo.");
+  }
+}
+
 function EtiquetaPreview({ producto, onClose }) {
   const barcodeRef = useRef(null);
   useEffect(() => {
@@ -1710,15 +1738,15 @@ function PrintPreview({ doc, onClose, negocio }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoImagen(paperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`)}>
-            <Download size={15} /> Guardar
+          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(paperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
+            <Download size={15} /> Guardar PDF
           </button>
           <button className="hw-btn" style={{ flex: 1, justifyContent: "center" }} onClick={() => triggerPrint(formato)}>
             <Printer size={15} /> Imprimir
           </button>
         </div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-          "Guardar" descarga el ticket como imagen (ideal para enviar por WhatsApp). "Imprimir" abre el diálogo de tu impresora, donde también puedes elegir "Guardar como PDF".
+          "Guardar PDF" descarga el ticket como PDF (ideal para enviar por WhatsApp). "Imprimir" abre el diálogo de tu impresora física.
         </div>
       </div>
     </div>
