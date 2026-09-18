@@ -546,6 +546,15 @@ function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
   const [guardado, setGuardado] = useState(false);
+  const cargadoRef = useRef(false);
+
+  useEffect(() => {
+    if (negocioConfig[0] && !cargadoRef.current) {
+      const n = negocioConfig[0];
+      setForm({ nombre: n.nombre || "", eslogan: n.eslogan || "", direccion: n.direccion || "", telefono: n.telefono || "", rnc: n.rnc || "" });
+      cargadoRef.current = true;
+    }
+  }, [negocioConfig]);
 
   function guardar() {
     if (negocioConfig[0]) {
