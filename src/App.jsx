@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
+import html2canvas from "html2canvas";
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -1560,6 +1561,20 @@ function triggerPrintLabel() {
   setTimeout(() => window.print(), 50);
 }
 
+async function guardarComoImagen(nodo, nombreArchivo) {
+  if (!nodo) return;
+  try {
+    const canvas = await html2canvas(nodo, { scale: 3, backgroundColor: "#ffffff" });
+    const link = document.createElement("a");
+    link.download = nombreArchivo + ".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  } catch (e) {
+    console.error("No se pudo guardar la imagen:", e);
+    alert("No se pudo guardar como imagen. Prueba con \"Imprimir / Guardar como PDF\".");
+  }
+}
+
 function EtiquetaPreview({ producto, onClose }) {
   const barcodeRef = useRef(null);
   useEffect(() => {
@@ -1597,21 +1612,12 @@ function EtiquetaPreview({ producto, onClose }) {
 function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
   const paperRef = useRef(null);
-  const barcodeRef = useRef(null);
   const qrRef = useRef(null);
-
-  useEffect(() => {
-    if (barcodeRef.current && doc?.numero) {
-      try {
-        JsBarcode(barcodeRef.current, doc.numero, { format: "CODE128", width: 1.5, height: 36, displayValue: true, fontSize: 11, margin: 6 });
-      } catch (e) { console.error("No se pudo generar el código de barras:", e); }
-    }
-  }, [doc?.numero, formato]);
 
   useEffect(() => {
     if (qrRef.current && doc?.numero) {
       const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
-      QRCode.toCanvas(qrRef.current, contenido, { width: 90, margin: 1 }, (err) => {
+      QRCode.toCanvas(qrRef.current, contenido, { width: 100, margin: 1 }, (err) => {
         if (err) console.error("No se pudo generar el código QR:", err);
       });
     }
@@ -1666,7 +1672,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center", color: "#777" }}>¡Gracias por su preferencia!</div>
-              <div style={{ textAlign: "center", marginTop: 8 }}><svg ref={barcodeRef}></svg></div>
+              <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
             </div>
           ) : (
             <div className="hw-print-paper hw-paper-ticket" ref={paperRef}>
@@ -1698,19 +1704,21 @@ function PrintPreview({ doc, onClose, negocio }) {
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
-              <div style={{ textAlign: "center", marginTop: 8 }}><svg ref={barcodeRef}></svg></div>
               <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
             </div>
           )}
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoImagen(paperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`)}>
+            <Download size={15} /> Guardar
+          </button>
           <button className="hw-btn" style={{ flex: 1, justifyContent: "center" }} onClick={() => triggerPrint(formato)}>
-            <Printer size={15} /> Imprimir / Guardar como PDF
+            <Printer size={15} /> Imprimir
           </button>
         </div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-          En el diálogo que se abre, elige tu impresora física o la opción "Guardar como PDF" para descargarlo.
+          "Guardar" descarga el ticket como imagen (ideal para enviar por WhatsApp). "Imprimir" abre el diálogo de tu impresora, donde también puedes elegir "Guardar como PDF".
         </div>
       </div>
     </div>
