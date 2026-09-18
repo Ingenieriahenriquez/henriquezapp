@@ -206,6 +206,113 @@ function CodigoBarras({ productos }) {
   );
 }
 
+function Reportes({ facturas, abonosPagos }) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [desde, setDesde] = useState(hace30);
+  const [hasta, setHasta] = useState(hoy);
+
+  const enRango = useMemo(
+    () => facturas.filter((f) => f.estado !== "Anulada" && f.fecha >= desde && f.fecha <= hasta),
+    [facturas, desde, hasta]
+  );
+
+  const totalFacturado = enRango.reduce((s, f) => s + calcTotal(f.items, f.aplicaItbis).total, 0);
+  const cantFacturas = enRango.length;
+  const promedio = cantFacturas ? totalFacturado / cantFacturas : 0;
+
+  const totalCobrado = enRango.reduce((s, f) => {
+    const total = calcTotal(f.items, f.aplicaItbis).total;
+    if (f.estado === "Pendiente") {
+      const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s2, a) => s2 + Number(a.monto), 0);
+      return s + Math.min(pagado, total);
+    }
+    return s + total;
+  }, 0);
+
+  const topClientes = useMemo(() => {
+    const porCliente = {};
+    enRango.forEach((f) => {
+      const t = calcTotal(f.items, f.aplicaItbis).total;
+      porCliente[f.clienteNombre] = (porCliente[f.clienteNombre] || 0) + t;
+    });
+    return Object.entries(porCliente).map(([nombre, total]) => ({ nombre, total })).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [enRango]);
+
+  const pendientesCobro = useMemo(() => {
+    return facturas.filter((f) => f.estado !== "Anulada").map((f) => {
+      const total = calcTotal(f.items, f.aplicaItbis).total;
+      const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
+      return { ...f, total, pagado, pendiente: total - pagado };
+    }).filter((f) => f.pendiente > 0.009).sort((a, b) => b.pendiente - a.pendiente);
+  }, [facturas, abonosPagos]);
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Reportes</div><div className="hw-sub">Resumen de ventas, clientes y cobros pendientes</div></div>
+      </div>
+
+      <div className="hw-panel" style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <FieldRow label="Desde"><input className="hw-input" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></FieldRow>
+          <FieldRow label="Hasta"><input className="hw-input" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></FieldRow>
+        </div>
+      </div>
+
+      <div className="hw-grid" style={{ marginBottom: 16 }}>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--accent-soft)" }}><FileText size={17} color="var(--accent2)" /></div></div>
+          <div className="hw-kpi-label">Facturas en el período</div>
+          <div className="hw-kpi-value">{cantFacturas}</div>
+        </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--green-soft)" }}><Wallet size={17} color="var(--green)" /></div></div>
+          <div className="hw-kpi-label">Total facturado</div>
+          <div className="hw-kpi-value" style={{ color: "var(--green)" }}>{money(totalFacturado)}</div>
+        </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--blue-soft)" }}><Coins size={17} color="var(--blue)" /></div></div>
+          <div className="hw-kpi-label">Total cobrado</div>
+          <div className="hw-kpi-value">{money(totalCobrado)}</div>
+        </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--red-soft)" }}><BarChart3 size={17} color="var(--red)" /></div></div>
+          <div className="hw-kpi-label">Promedio por factura</div>
+          <div className="hw-kpi-value">{money(promedio)}</div>
+        </div>
+      </div>
+
+      <div className="hw-panel" style={{ marginBottom: 16 }}>
+        <div style={{ padding: "14px 16px", fontWeight: 600 }}>Top clientes del período</div>
+        <table className="hw-table hw-t-topclientes">
+          <thead><tr><th>Cliente</th><th>Total comprado</th></tr></thead>
+          <tbody>
+            {topClientes.map((c, i) => (<tr key={i}><td>{c.nombre}</td><td>{money(c.total)}</td></tr>))}
+            {topClientes.length === 0 && <tr><td colSpan={2} className="hw-empty">Sin facturas en este período</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="hw-panel">
+        <div style={{ padding: "14px 16px", fontWeight: 600 }}>Facturas pendientes de cobro (todas, no solo el período)</div>
+        <table className="hw-table hw-t-abonospend">
+          <thead><tr><th>NCF</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead>
+          <tbody>
+            {pendientesCobro.map((f) => (
+              <tr key={f.id}>
+                <td className="hw-mono">{f.ncf}</td><td>{f.clienteNombre}</td><td>{money(f.total)}</td><td>{money(f.pagado)}</td>
+                <td style={{ fontWeight: 600, color: "var(--red)" }}>{money(f.pendiente)}</td>
+              </tr>
+            ))}
+            {pendientesCobro.length === 0 && <tr><td colSpan={5} className="hw-empty">No hay facturas pendientes de cobro</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Graficas({ facturas, cotizaciones, productos }) {
   const trendData = useMemo(() => {
     const byDate = {};
@@ -836,6 +943,8 @@ function Panel({ session }) {
           .hw-t-abonoshist td:nth-of-type(3)::before{content:"Monto: ";font-weight:600;color:var(--muted);}
           .hw-t-abonoshist td:nth-of-type(4)::before{content:"Método: ";font-weight:600;color:var(--muted);}
           .hw-t-abonoshist td:nth-of-type(5)::before{content:"Nota: ";font-weight:600;color:var(--muted);}
+          .hw-t-topclientes td:nth-of-type(1):not(.hw-empty)::before{content:"Cliente: ";font-weight:600;color:var(--muted);}
+          .hw-t-topclientes td:nth-of-type(2)::before{content:"Total comprado: ";font-weight:600;color:var(--muted);}
           .hw-modal-overlay{padding:10px;align-items:flex-end;}
           .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
@@ -895,7 +1004,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "inventario" ? "block" : "none" }}>
           <Inventario productos={productos} setProductos={setProductos} />
         </div>
-        <div style={{ display: tab === "reportes" ? "block" : "none" }}><Proximamente titulo="Reportes" /></div>
+        <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
