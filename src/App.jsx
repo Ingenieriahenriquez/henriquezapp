@@ -206,6 +206,124 @@ function CodigoBarras({ productos }) {
   );
 }
 
+function Graficas({ facturas, cotizaciones, productos }) {
+  const trendData = useMemo(() => {
+    const byDate = {};
+    facturas.filter((f) => f.estado !== "Anulada").forEach((f) => {
+      const t = calcTotal(f.items, f.aplicaItbis).total;
+      byDate[f.fecha] = (byDate[f.fecha] || 0) + t;
+    });
+    return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([fecha, total]) => ({
+      fecha: fecha.slice(5).split("-").reverse().join("/"), total,
+    }));
+  }, [facturas]);
+
+  const catData = useMemo(() => {
+    const byCat = {};
+    facturas.filter((f) => f.estado !== "Anulada").forEach((f) => f.items.forEach((it) => {
+      const cat = categoriaDe(it.nombre, productos);
+      byCat[cat] = (byCat[cat] || 0) + it.cantidad * it.precio;
+    }));
+    return Object.entries(byCat).map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total);
+  }, [facturas, productos]);
+
+  const topProductos = useMemo(() => {
+    const byNombre = {};
+    facturas.filter((f) => f.estado !== "Anulada").forEach((f) => f.items.forEach((it) => {
+      byNombre[it.nombre] = (byNombre[it.nombre] || 0) + it.cantidad;
+    }));
+    return Object.entries(byNombre).map(([nombre, cantidad]) => ({ nombre, cantidad })).sort((a, b) => b.cantidad - a.cantidad).slice(0, 5);
+  }, [facturas]);
+
+  const cotizData = useMemo(() => {
+    const conteo = { Pendiente: 0, Aprobada: 0, Rechazada: 0 };
+    cotizaciones.forEach((c) => { conteo[c.estado] = (conteo[c.estado] || 0) + 1; });
+    return Object.entries(conteo).map(([estado, cantidad]) => ({ estado, cantidad }));
+  }, [cotizaciones]);
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Gráficas</div><div className="hw-sub">Ventas, categorías y cotizaciones de un vistazo</div></div>
+      </div>
+
+      <div className="hw-panel" style={{ marginBottom: 16 }}>
+        <div className="hw-panel-head"><div className="hw-panel-title">Ingresos por día</div></div>
+        <div style={{ padding: "14px 10px 4px" }}>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={trendData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="hwGradG" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#E0791C" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#E0791C" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#EDEEF2" />
+              <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} tickFormatter={moneyShort} width={44} />
+              <Tooltip formatter={(v) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
+              <Area type="monotone" dataKey="total" stroke="#E0791C" strokeWidth={2.5} fill="url(#hwGradG)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div className="hw-panel">
+          <div className="hw-panel-head"><div className="hw-panel-title">Ingresos por categoría</div></div>
+          <div style={{ padding: "14px 12px 4px" }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={catData} layout="vertical" margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 5" horizontal={false} stroke="#EDEEF2" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} tickFormatter={moneyShort} />
+                <YAxis type="category" dataKey="categoria" tick={{ fontSize: 11, fill: "#151A24" }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip formatter={(v) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
+                <Bar dataKey="total" radius={[0, 6, 6, 0]}>
+                  {catData.map((d, i) => <Cell key={i} fill={CAT_COLORS[d.categoria] || "#8B93A1"} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {catData.length === 0 && <div className="hw-empty" style={{ padding: 20 }}>Sin datos todavía</div>}
+          </div>
+        </div>
+
+        <div className="hw-panel">
+          <div className="hw-panel-head"><div className="hw-panel-title">Top 5 productos vendidos (cantidad)</div></div>
+          <div style={{ padding: "14px 12px 4px" }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={topProductos} layout="vertical" margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 5" horizontal={false} stroke="#EDEEF2" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11, fill: "#151A24" }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
+                <Bar dataKey="cantidad" radius={[0, 6, 6, 0]} fill="#3F6FD1" />
+              </BarChart>
+            </ResponsiveContainer>
+            {topProductos.length === 0 && <div className="hw-empty" style={{ padding: 20 }}>Sin datos todavía</div>}
+          </div>
+        </div>
+      </div>
+
+      <div className="hw-panel">
+        <div className="hw-panel-head"><div className="hw-panel-title">Cotizaciones por estado</div></div>
+        <div style={{ padding: "14px 12px 4px" }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={cotizData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#EDEEF2" />
+              <XAxis dataKey="estado" tick={{ fontSize: 12, fill: "#151A24" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
+              <Bar dataKey="cantidad" radius={[6, 6, 0, 0]}>
+                {cotizData.map((d, i) => <Cell key={i} fill={d.estado === "Aprobada" ? "#2F9E67" : d.estado === "Rechazada" ? "#C24F3A" : "#E0952E"} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   const [facturaId, setFacturaId] = useState("");
   const [monto, setMonto] = useState("");
@@ -781,7 +899,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
-        <div style={{ display: tab === "graficas" ? "block" : "none" }}><Proximamente titulo="Gráficas" /></div>
+        <div style={{ display: tab === "graficas" ? "block" : "none" }}><Graficas facturas={facturas} cotizaciones={cotizaciones} productos={productos} /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
         <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Ajustes negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} /></div>
         <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><Proximamente titulo="Chat soporte" /></div>
