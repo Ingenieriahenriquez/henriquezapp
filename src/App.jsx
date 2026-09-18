@@ -206,6 +206,31 @@ function CodigoBarras({ productos }) {
   );
 }
 
+function ChatSoporte({ negocio }) {
+  const [mensaje, setMensaje] = useState("");
+
+  function enviar() {
+    const texto = mensaje.trim() || "Hola, tengo una consulta sobre el sistema de facturación.";
+    enviarWhatsApp("849-393-6337", texto);
+  }
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Chat soporte</div><div className="hw-sub">¿Tienes algún problema usando el sistema? Escríbenos directo por WhatsApp</div></div>
+      </div>
+      <div className="hw-panel" style={{ padding: 24, maxWidth: 420 }}>
+        <div style={{ fontWeight: 700, fontSize: 17 }}>{negocio.nombre}</div>
+        <div style={{ color: "var(--muted)", marginBottom: 14 }}>Ing. Henríquez · 849-393-6337</div>
+        <FieldRow label="Cuéntanos qué pasó (opcional)">
+          <textarea className="hw-input" rows={3} value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Ej. no me deja guardar una factura..." style={{ resize: "vertical" }} />
+        </FieldRow>
+        <button className="hw-btn soft-green" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={enviar}><MessageCircle size={15} /> Escribir por WhatsApp</button>
+      </div>
+    </div>
+  );
+}
+
 function Reportes({ facturas, abonosPagos }) {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -1011,7 +1036,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Graficas facturas={facturas} cotizaciones={cotizaciones} productos={productos} /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
         <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Ajustes negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} /></div>
-        <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><Proximamente titulo="Chat soporte" /></div>
+        <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><ChatSoporte negocio={negocio} /></div>
       </main>
     </div>
   );
