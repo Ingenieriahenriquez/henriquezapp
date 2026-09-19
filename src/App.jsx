@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
@@ -873,6 +874,38 @@ function Panel({ session }) {
         .hw-paper-total-row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
         .hw-paper-total-row.grand{font-weight:700;font-size:13px;border-top:1px solid #ccc;margin-top:4px;padding-top:5px;}
 
+        #hw-print-target{display:none;}
+        .hwp-page{width:100%;min-height:100%;box-sizing:border-box;padding:6mm 4mm;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;color:#151A24;background-color:#ffffff;background-image:repeating-linear-gradient(45deg, rgba(16,24,39,0.045) 0, rgba(16,24,39,0.045) 1px, transparent 1px, transparent 15px),repeating-linear-gradient(-45deg, rgba(224,121,28,0.035) 0, rgba(224,121,28,0.035) 1px, transparent 1px, transparent 15px);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        .hwp-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:8px;}
+        .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;color:#101827;line-height:1.15;}
+        .hwp-slogan{font-style:italic;font-size:12.5px;color:#6B7280;margin-top:2px;}
+        .hwp-contact{font-size:11.5px;color:#374151;margin-top:2px;}
+        .hwp-doctype{text-align:right;flex-shrink:0;}
+        .hwp-doctype-label{font-weight:700;font-size:13.5px;color:#E0791C;letter-spacing:.03em;}
+        .hwp-doctype-num{font-size:13px;font-weight:600;margin-top:3px;}
+        .hwp-doctype-date{font-size:11px;color:#6B7280;margin-top:1px;}
+        .hwp-rule{border-top:2px solid #101827;margin:6px 0 12px;}
+        .hwp-cliente{background:rgba(16,24,39,0.035);border:1px solid rgba(16,24,39,0.08);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12.5px;}
+        .hwp-cliente-sub{color:#6B7280;font-size:11.5px;margin-top:2px;}
+        .hwp-table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+        .hwp-table thead td{font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#374151;border-bottom:2px solid #101827;padding:6px 4px;}
+        .hwp-table tbody td{font-size:12.5px;padding:7px 4px;border-bottom:1px solid rgba(16,24,39,0.09);}
+        .hwp-table tbody tr{page-break-inside:avoid;}
+        .hwp-table tbody tr:nth-child(even){background:rgba(16,24,39,0.025);}
+        .hwp-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:10px;page-break-inside:avoid;}
+        .hwp-notes{font-size:11.5px;color:#374151;}
+        .hwp-thanks{margin-top:6px;color:#6B7280;font-style:italic;}
+        .hwp-totals{min-width:210px;background:#fff;border:1.5px solid #101827;border-radius:8px;padding:8px 14px;}
+        .hwp-total-row{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;}
+        .hwp-total-row.grand{font-weight:700;font-size:15.5px;border-top:1.5px solid #101827;margin-top:4px;padding-top:6px;color:#101827;}
+        .hwp-footer{display:flex;align-items:center;gap:10px;border-top:1px dashed #B9BDC7;padding-top:10px;page-break-inside:avoid;}
+        .hwp-footer-text{font-size:10.5px;color:#9AA1AC;}
+        .hwp-ticket{width:80mm;box-sizing:border-box;padding:4mm;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#151A24;}
+        .hwp-ticket .hwp-t-h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;text-align:center;}
+        .hwp-ticket .hwp-t-line{border-top:1px dashed #B9BDC7;margin:7px 0;}
+        .hwp-ticket .hwp-t-total{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
+        .hwp-ticket .hwp-t-total.grand{font-weight:700;font-size:13.5px;border-top:1px solid #101827;margin-top:4px;padding-top:5px;}
+
         @media (max-width: 1440px) {
           .hw-main{padding:20px 22px;}
           .hw-sidebar{width:200px;}
@@ -986,9 +1019,8 @@ function Panel({ session }) {
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
         }
         @media print {
-          body * { visibility: hidden; }
-          .hw-print-paper, .hw-print-paper * { visibility: visible; }
-          .hw-print-paper { position: fixed; top: 0; left: 0; width: 100%; box-shadow: none !important; max-height: none !important; overflow: visible !important; }
+          body > *:not(#hw-print-target) { display: none !important; }
+          #hw-print-target { display: block !important; }
         }
       `}</style>
 
@@ -1641,12 +1673,19 @@ function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
   const paperRef = useRef(null);
   const qrRef = useRef(null);
+  const printQrRef = useRef(null);
 
   useEffect(() => {
     if (qrRef.current && doc?.numero) {
       const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
       QRCode.toCanvas(qrRef.current, contenido, { width: 100, margin: 1 }, (err) => {
         if (err) console.error("No se pudo generar el código QR:", err);
+      });
+    }
+    if (printQrRef.current && doc?.numero) {
+      const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
+      QRCode.toCanvas(printQrRef.current, contenido, { width: 110, margin: 1 }, (err) => {
+        if (err) console.error("No se pudo generar el código QR de impresión:", err);
       });
     }
   }, [doc?.numero, formato]);
@@ -1736,6 +1775,93 @@ function PrintPreview({ doc, onClose, negocio }) {
             </div>
           )}
         </div>
+
+        {createPortal(
+          <div id="hw-print-target">
+            {formato === "carta" ? (
+              <div className="hwp-page">
+                <div className="hwp-header">
+                  <div>
+                    <div className="hwp-brand">{negocio.nombre}</div>
+                    {negocio.eslogan && <div className="hwp-slogan">{negocio.eslogan}</div>}
+                    <div className="hwp-contact">{negocio.direccion}</div>
+                    <div className="hwp-contact">Tel/WhatsApp: {negocio.telefono}</div>
+                  </div>
+                  <div className="hwp-doctype">
+                    <div className="hwp-doctype-label">{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
+                    <div className="hwp-doctype-num">{esFactura ? "NCF " : "No. "}{doc.numero}</div>
+                    <div className="hwp-doctype-date">Fecha: {doc.fecha}</div>
+                    {formatearFechaHora(doc.creadoEn) && <div className="hwp-doctype-date">Procesado: {formatearFechaHora(doc.creadoEn)}</div>}
+                  </div>
+                </div>
+                <div className="hwp-rule" />
+                <div className="hwp-cliente">
+                  <div><b>Cliente:</b> {doc.clienteNombre}</div>
+                  {(doc.clienteNegocio || doc.clienteRnc) && (
+                    <div className="hwp-cliente-sub">
+                      {doc.clienteNegocio}{doc.clienteNegocio && doc.clienteRnc ? " · " : ""}{doc.clienteRnc ? `RNC/Cédula: ${doc.clienteRnc}` : ""}
+                    </div>
+                  )}
+                </div>
+                <table className="hwp-table">
+                  <thead><tr><td>Descripción</td><td>Cant.</td><td>Precio</td><td style={{ textAlign: "right" }}>Total</td></tr></thead>
+                  <tbody>
+                    {doc.items.map((it, i) => (
+                      <tr key={i}><td>{it.nombre}</td><td>{it.cantidad}</td><td>{money(it.precio)}</td><td style={{ textAlign: "right" }}>{money(it.cantidad * it.precio)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="hwp-bottom">
+                  <div className="hwp-notes">
+                    {esFactura && doc.metodo && <div>Método de pago: {doc.metodo}</div>}
+                    {!esFactura && <div>Validez de la cotización: 15 días</div>}
+                    <div className="hwp-thanks">¡Gracias por su preferencia!</div>
+                  </div>
+                  <div className="hwp-totals">
+                    <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
+                    <div className="hwp-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
+                    <div className="hwp-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
+                  </div>
+                </div>
+                <div className="hwp-footer">
+                  <canvas ref={printQrRef}></canvas>
+                  <div className="hwp-footer-text">Documento generado por {negocio.nombre}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="hwp-ticket">
+                <div className="hwp-t-h1">{negocio.nombre}</div>
+                {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
+                <div style={{ textAlign: "center" }}>{negocio.direccion}</div>
+                <div style={{ textAlign: "center" }}>{negocio.telefono}</div>
+                <div className="hwp-t-line" />
+                <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
+                <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
+                <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+                <div>Cliente: {doc.clienteNombre}</div>
+                <div className="hwp-t-line" />
+                {doc.items.map((it, i) => (
+                  <div key={i} style={{ marginBottom: 4 }}>
+                    <div>{it.nombre}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{it.cantidad} x {money(it.precio)}</span>
+                      <span>{money(it.cantidad * it.precio)}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="hwp-t-line" />
+                <div className="hwp-t-total"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
+                <div className="hwp-t-total"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
+                <div className="hwp-t-total grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
+                {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
+                <div className="hwp-t-line" />
+                <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
+                <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={printQrRef}></canvas></div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(paperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
