@@ -874,19 +874,20 @@ function Panel({ session }) {
         .hw-paper-total-row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
         .hw-paper-total-row.grand{font-weight:700;font-size:13px;border-top:1px solid #ccc;margin-top:4px;padding-top:5px;}
 
-        #hw-print-target{display:none;}
-        .hwp-page{width:100%;min-height:100%;box-sizing:border-box;padding:6mm 4mm;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;color:#151A24;background-color:#ffffff;background-image:repeating-linear-gradient(45deg, rgba(16,24,39,0.045) 0, rgba(16,24,39,0.045) 1px, transparent 1px, transparent 15px),repeating-linear-gradient(-45deg, rgba(224,121,28,0.035) 0, rgba(224,121,28,0.035) 1px, transparent 1px, transparent 15px);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-        .hwp-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:8px;}
-        .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;color:#101827;line-height:1.15;}
-        .hwp-slogan{font-style:italic;font-size:12.5px;color:#6B7280;margin-top:2px;}
-        .hwp-contact{font-size:11.5px;color:#374151;margin-top:2px;}
+        #hw-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
+        .hwp-page{width:190mm;box-sizing:border-box;padding:8mm 7mm;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;color:#151A24;background-color:#ffffff;background-image:repeating-linear-gradient(45deg, rgba(16,24,39,0.045) 0, rgba(16,24,39,0.045) 1px, transparent 1px, transparent 15px),repeating-linear-gradient(-45deg, rgba(224,121,28,0.035) 0, rgba(224,121,28,0.035) 1px, transparent 1px, transparent 15px);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        .hwp-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:10px;}
+        .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:32px;color:#101827;line-height:1.15;}
+        .hwp-slogan{font-style:italic;font-size:14.5px;color:#6B7280;margin-top:3px;}
+        .hwp-contact{font-size:13.5px;color:#374151;margin-top:3px;}
         .hwp-doctype{text-align:right;flex-shrink:0;}
-        .hwp-doctype-label{font-weight:700;font-size:13.5px;color:#E0791C;letter-spacing:.03em;}
-        .hwp-doctype-num{font-size:13px;font-weight:600;margin-top:3px;}
-        .hwp-doctype-date{font-size:11px;color:#6B7280;margin-top:1px;}
+        .hwp-doctype-label{font-weight:700;font-size:14.5px;color:#E0791C;letter-spacing:.03em;}
+        .hwp-doctype-num{font-size:14px;font-weight:600;margin-top:4px;}
+        .hwp-doctype-date{font-size:11.5px;color:#6B7280;margin-top:2px;}
         .hwp-rule{border-top:2px solid #101827;margin:6px 0 12px;}
-        .hwp-cliente{background:rgba(16,24,39,0.035);border:1px solid rgba(16,24,39,0.08);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12.5px;}
-        .hwp-cliente-sub{color:#6B7280;font-size:11.5px;margin-top:2px;}
+        .hwp-cliente{background:rgba(16,24,39,0.035);border:1px solid rgba(16,24,39,0.08);border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:12.5px;}
+        .hwp-cliente-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;margin-top:4px;}
+        .hwp-cliente-sub{color:#374151;font-size:11.5px;}
         .hwp-table{width:100%;border-collapse:collapse;margin-bottom:14px;}
         .hwp-table thead td{font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#374151;border-bottom:2px solid #101827;padding:6px 4px;}
         .hwp-table tbody td{font-size:12.5px;padding:7px 4px;border-bottom:1px solid rgba(16,24,39,0.09);}
@@ -894,13 +895,17 @@ function Panel({ session }) {
         .hwp-table tbody tr:nth-child(even){background:rgba(16,24,39,0.025);}
         .hwp-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:10px;page-break-inside:avoid;}
         .hwp-notes{font-size:11.5px;color:#374151;}
-        .hwp-thanks{margin-top:6px;color:#6B7280;font-style:italic;}
         .hwp-totals{min-width:210px;background:#fff;border:1.5px solid #101827;border-radius:8px;padding:8px 14px;}
         .hwp-total-row{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;}
         .hwp-total-row.grand{font-weight:700;font-size:15.5px;border-top:1.5px solid #101827;margin-top:4px;padding-top:6px;color:#101827;}
-        .hwp-footer{display:flex;align-items:center;gap:10px;border-top:1px dashed #B9BDC7;padding-top:10px;page-break-inside:avoid;}
-        .hwp-footer-text{font-size:10.5px;color:#9AA1AC;}
+        .hwp-footer{border-top:1px dashed #B9BDC7;padding-top:10px;page-break-inside:avoid;}
+        .hwp-thanks-line{text-align:center;font-style:italic;color:#6B7280;font-size:12.5px;}
+        .hwp-qr-wrap{display:flex;justify-content:center;margin:8px 0;}
+        .hwp-warranty{border-top:1px dashed #B9BDC7;margin-top:4px;padding-top:8px;font-size:9.5px;line-height:1.5;color:#4B5563;text-align:center;}
+        .hwp-warranty b{color:#101827;}
+        .hwp-footer-text{font-size:9px;color:#9AA1AC;text-align:center;margin-top:6px;}
         .hwp-ticket{width:80mm;box-sizing:border-box;padding:4mm;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#151A24;}
+        .hwp-ticket .hwp-t-warranty{border-top:1px dashed #B9BDC7;margin-top:6px;padding-top:6px;font-size:8.5px;line-height:1.45;color:#4B5563;text-align:center;}
         .hwp-ticket .hwp-t-h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;text-align:center;}
         .hwp-ticket .hwp-t-line{border-top:1px dashed #B9BDC7;margin:7px 0;}
         .hwp-ticket .hwp-t-total{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
@@ -1020,7 +1025,7 @@ function Panel({ session }) {
         }
         @media print {
           body > *:not(#hw-print-target) { display: none !important; }
-          #hw-print-target { display: block !important; }
+          #hw-print-target { position: static !important; left: auto !important; display: block !important; }
         }
       `}</style>
 
@@ -1672,6 +1677,7 @@ function EtiquetaPreview({ producto, onClose }) {
 function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
   const paperRef = useRef(null);
+  const printPaperRef = useRef(null);
   const qrRef = useRef(null);
   const printQrRef = useRef(null);
 
@@ -1779,7 +1785,7 @@ function PrintPreview({ doc, onClose, negocio }) {
         {createPortal(
           <div id="hw-print-target">
             {formato === "carta" ? (
-              <div className="hwp-page">
+              <div className="hwp-page" ref={printPaperRef}>
                 <div className="hwp-header">
                   <div>
                     <div className="hwp-brand">{negocio.nombre}</div>
@@ -1797,11 +1803,13 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <div className="hwp-rule" />
                 <div className="hwp-cliente">
                   <div><b>Cliente:</b> {doc.clienteNombre}</div>
-                  {(doc.clienteNegocio || doc.clienteRnc) && (
-                    <div className="hwp-cliente-sub">
-                      {doc.clienteNegocio}{doc.clienteNegocio && doc.clienteRnc ? " · " : ""}{doc.clienteRnc ? `RNC/Cédula: ${doc.clienteRnc}` : ""}
-                    </div>
-                  )}
+                  <div className="hwp-cliente-grid">
+                    {doc.clienteNegocio && <div className="hwp-cliente-sub">Negocio: {doc.clienteNegocio}</div>}
+                    {doc.clienteRnc && <div className="hwp-cliente-sub">RNC/Cédula: {doc.clienteRnc}</div>}
+                    {doc.clienteTelefono && <div className="hwp-cliente-sub">Teléfono: {doc.clienteTelefono}</div>}
+                    {doc.clienteCorreo && <div className="hwp-cliente-sub">Correo: {doc.clienteCorreo}</div>}
+                    {doc.clienteDireccion && <div className="hwp-cliente-sub" style={{ gridColumn: "1 / -1" }}>Dirección: {doc.clienteDireccion}</div>}
+                  </div>
                 </div>
                 <table className="hwp-table">
                   <thead><tr><td>Descripción</td><td>Cant.</td><td>Precio</td><td style={{ textAlign: "right" }}>Total</td></tr></thead>
@@ -1815,7 +1823,6 @@ function PrintPreview({ doc, onClose, negocio }) {
                   <div className="hwp-notes">
                     {esFactura && doc.metodo && <div>Método de pago: {doc.metodo}</div>}
                     {!esFactura && <div>Validez de la cotización: 15 días</div>}
-                    <div className="hwp-thanks">¡Gracias por su preferencia!</div>
                   </div>
                   <div className="hwp-totals">
                     <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
@@ -1824,12 +1831,18 @@ function PrintPreview({ doc, onClose, negocio }) {
                   </div>
                 </div>
                 <div className="hwp-footer">
-                  <canvas ref={printQrRef}></canvas>
+                  <div className="hwp-thanks-line">¡Gracias por su preferencia!</div>
+                  <div className="hwp-qr-wrap"><canvas ref={printQrRef}></canvas></div>
+                  <div className="hwp-warranty">
+                    <b>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
+                    Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
+                    Gracias por su comprensión.
+                  </div>
                   <div className="hwp-footer-text">Documento generado por {negocio.nombre}</div>
                 </div>
               </div>
             ) : (
-              <div className="hwp-ticket">
+              <div className="hwp-ticket" ref={printPaperRef}>
                 <div className="hwp-t-h1">{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
                 <div style={{ textAlign: "center" }}>{negocio.direccion}</div>
@@ -1839,6 +1852,11 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
                 <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
                 <div>Cliente: {doc.clienteNombre}</div>
+                {doc.clienteNegocio && <div>Negocio: {doc.clienteNegocio}</div>}
+                {doc.clienteRnc && <div>RNC/Cédula: {doc.clienteRnc}</div>}
+                {doc.clienteTelefono && <div>Tel: {doc.clienteTelefono}</div>}
+                {doc.clienteCorreo && <div>Correo: {doc.clienteCorreo}</div>}
+                {doc.clienteDireccion && <div>Dirección: {doc.clienteDireccion}</div>}
                 <div className="hwp-t-line" />
                 {doc.items.map((it, i) => (
                   <div key={i} style={{ marginBottom: 4 }}>
@@ -1857,6 +1875,9 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <div className="hwp-t-line" />
                 <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
                 <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={printQrRef}></canvas></div>
+                <div className="hwp-t-warranty">
+                  <b>Importante:</b> garantía equipos nuevos 2 años, refurbished 1 mes. Instalación: 3 meses. No cubre picos eléctricos, mal manejo por el cliente/terceros ni sello de garantía alterado. Gracias por su comprensión.
+                </div>
               </div>
             )}
           </div>,
@@ -1864,7 +1885,7 @@ function PrintPreview({ doc, onClose, negocio }) {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(paperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
+          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
             <Download size={15} /> Guardar PDF
           </button>
           <button className="hw-btn" style={{ flex: 1, justifyContent: "center" }} onClick={() => triggerPrint(formato)}>
@@ -1945,7 +1966,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function abrirImpresion(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId);
-    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn });
+    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn });
   }
 
   function whatsappFactura(f) {
@@ -2108,7 +2129,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, items: c.items, creadoEn: c.creadoEn });
+    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, creadoEn: c.creadoEn });
   }
 
   function whatsappCotizacion(c) {
