@@ -833,8 +833,9 @@ function Panel({ session }) {
         .hw-ncf-stub{font-family:'IBM Plex Mono',monospace;background:var(--navy);color:#fff;padding:3px 9px;border-radius:6px;font-size:11.5px;letter-spacing:.02em;}
         .hw-empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;}
         .hw-lowstock-row{background:#FFF8F0;}
-        .hw-line-item{display:grid;grid-template-columns:1fr 70px 100px 30px 30px;gap:8px;margin-bottom:8px;align-items:center;}
-        .hw-suggest{position:absolute;top:100%;left:0;right:100px;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(16,24,39,0.12);margin-top:2px;max-height:220px;overflow-y:auto;}
+        .hw-line-item{display:grid;grid-template-columns:1fr 70px 100px auto;gap:8px;margin-bottom:8px;align-items:center;}
+        .hw-li-actions{display:flex;gap:4px;align-items:center;}
+        .hw-suggest{position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(16,24,39,0.12);margin-top:2px;max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
         .hw-suggest-item{display:flex;justify-content:space-between;gap:8px;padding:8px 12px;cursor:pointer;font-size:13.5px;}
         .hw-suggest-item:hover{background:var(--bg2,#f3f5f8);}
         .hw-suggest-code{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
@@ -1022,6 +1023,23 @@ function Panel({ session }) {
           .hw-modal-overlay{padding:10px;align-items:flex-end;}
           .hw-modal{max-width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
           .hw-btn.small{padding:8px 12px;font-size:12.5px;}
+          .hw-line-item{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            grid-template-areas:"nombre nombre" "cant precio" "actions actions";
+            gap:6px;
+            padding:10px;
+            border:1px solid var(--line);
+            border-radius:10px;
+            margin-bottom:10px;
+          }
+          .hw-li-nombre{grid-area:nombre;font-size:16px;padding:10px 12px;}
+          .hw-li-cant{grid-area:cant;font-size:16px;padding:10px 12px;}
+          .hw-li-precio{grid-area:precio;font-size:16px;padding:10px 12px;}
+          .hw-li-actions{grid-area:actions;justify-content:flex-end;gap:10px;}
+          .hw-li-actions .hw-close{padding:8px;background:var(--bg);border-radius:8px;}
+          .hw-suggest{max-height:45vh;}
+          .hw-suggest-item{padding:12px 14px;font-size:14.5px;}
         }
         @media print {
           body > *:not(#hw-print-target) { display: none !important; }
@@ -1504,7 +1522,7 @@ function ItemsEditor({ items, setItems, productos, setProductos }) {
         return (
           <div className="hw-line-item" key={idx} style={{ position: "relative" }}>
             <input
-              className="hw-input"
+              className="hw-input hw-li-nombre"
               placeholder="Nombre, código o escanea con el lector..."
               value={it.nombre}
               onChange={(e) => alEscribir(idx, e.target.value)}
@@ -1522,10 +1540,12 @@ function ItemsEditor({ items, setItems, productos, setProductos }) {
                 ))}
               </div>
             )}
-            <input className="hw-input" type="number" min={1} value={it.cantidad} onChange={(e) => update(idx, "cantidad", Number(e.target.value))} />
-            <input className="hw-input" type="number" value={it.precio} onChange={(e) => update(idx, "precio", Number(e.target.value))} />
-            {setProductos && <button className="hw-close" title="Crear producto nuevo" onClick={() => abrirNuevoProducto(idx)}><Plus size={15} /></button>}
-            <button className="hw-close" onClick={() => removeItem(idx)}><X size={15} /></button>
+            <input className="hw-input hw-li-cant" type="number" min={1} value={it.cantidad} onChange={(e) => update(idx, "cantidad", Number(e.target.value))} />
+            <input className="hw-input hw-li-precio" type="number" value={it.precio} onChange={(e) => update(idx, "precio", Number(e.target.value))} />
+            <div className="hw-li-actions">
+              {setProductos && <button className="hw-close" title="Crear producto nuevo" onClick={() => abrirNuevoProducto(idx)}><Plus size={15} /></button>}
+              <button className="hw-close" onClick={() => removeItem(idx)}><X size={15} /></button>
+            </div>
           </div>
         );
       })}
