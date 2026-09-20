@@ -50,6 +50,14 @@ function formatearFechaHora(iso) {
   return d.toLocaleString("es-DO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
+function secuenciaCompacta(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
 function nombreUsuario(email) {
   if (!email) return "";
   if (email.toLowerCase() === "ingenieriaytecnologiahenriquez@gmail.com") return "Ing. Henríquez";
@@ -1751,6 +1759,8 @@ function PrintPreview({ doc, onClose, negocio }) {
               <div style={{ fontWeight: 700 }}>{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
               <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+              {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
+              {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
               <div className="hw-paper-line" />
               <div><b>Cliente:</b> {doc.clienteNombre}</div>
               {doc.clienteNegocio && <div>{doc.clienteNegocio}</div>}
@@ -1786,6 +1796,8 @@ function PrintPreview({ doc, onClose, negocio }) {
               <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
               <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+              {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
+              {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
               <div>Cliente: {doc.clienteNombre}</div>
               <div className="hw-paper-line" />
               {doc.items.map((it, i) => (
@@ -1825,6 +1837,7 @@ function PrintPreview({ doc, onClose, negocio }) {
                     <div className="hwp-doctype-num">{esFactura ? "NCF " : "No. "}{doc.numero}</div>
                     <div className="hwp-doctype-date">Fecha: {doc.fecha}</div>
                     {formatearFechaHora(doc.creadoEn) && <div className="hwp-doctype-date">Procesado: {formatearFechaHora(doc.creadoEn)}</div>}
+                    {doc.creadoEn && <div className="hwp-doctype-date">{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
                     {doc.atendidoPor && <div className="hwp-doctype-date">Atendido por: {doc.atendidoPor}</div>}
                   </div>
                 </div>
@@ -1879,6 +1892,7 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
                 <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
                 <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+                {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
                 {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
                 <div>Cliente: {doc.clienteNombre}</div>
                 {doc.clienteNegocio && <div>Negocio: {doc.clienteNegocio}</div>}
