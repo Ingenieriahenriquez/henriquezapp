@@ -87,18 +87,27 @@ export function useSupabaseState(table) {
         const antes = prevById[row.id];
         if (!antes) {
           const { error } = await supabase.from(table).insert(toDbRow(row));
-          if (error) console.error(`Error creando en "${table}":`, error.message);
+          if (error) {
+            console.error(`Error creando en "${table}":`, error.message);
+            alert(`No se pudo guardar en "${table}": ${error.message}\n\nEs posible que falte una columna en la base de datos. Avisa a soporte con este mensaje.`);
+          }
         } else if (JSON.stringify(antes) !== JSON.stringify(row)) {
           const dbRow = toDbRow(row);
           delete dbRow.id;
           const { error } = await supabase.from(table).update(dbRow).eq("id", row.id);
-          if (error) console.error(`Error actualizando "${table}":`, error.message);
+          if (error) {
+            console.error(`Error actualizando "${table}":`, error.message);
+            alert(`No se pudo actualizar en "${table}": ${error.message}\n\nEs posible que falte una columna en la base de datos. Avisa a soporte con este mensaje.`);
+          }
         }
       }
       for (const antes of prev) {
         if (!nextIds.has(antes.id)) {
           const { error } = await supabase.from(table).delete().eq("id", antes.id);
-          if (error) console.error(`Error eliminando de "${table}":`, error.message);
+          if (error) {
+            console.error(`Error eliminando de "${table}":`, error.message);
+            alert(`No se pudo eliminar de "${table}": ${error.message}`);
+          }
         }
       }
       prevRef.current = state;
