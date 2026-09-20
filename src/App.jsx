@@ -50,6 +50,13 @@ function formatearFechaHora(iso) {
   return d.toLocaleString("es-DO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
+function nombreUsuario(email) {
+  if (!email) return "";
+  if (email.toLowerCase() === "ingenieriaytecnologiahenriquez@gmail.com") return "Ing. Henríquez";
+  const usuario = email.split("@")[0] || email;
+  return usuario.charAt(0).toUpperCase() + usuario.slice(1);
+}
+
 const seedClientes = [
   { id: uid(), nombre: "Carlos Peña", negocio: "Gimnasio Fuerza Total", rnc: "1-31-45678-9", telefono: "829-555-0142", correo: "carlos@fuerzatotal.do", direccion: "Av. 27 de Febrero, Santiago", nota: "Cliente de instalación de cámaras + control de acceso." },
   { id: uid(), nombre: "Yolanda Reyes", negocio: "Clínica Dental Reyes", rnc: "1-30-98212-3", telefono: "849-555-8890", correo: "info@clinicareyes.do", direccion: "Los Jardines, Santiago", nota: "Interesada en sistema de citas a medida." },
@@ -1081,10 +1088,10 @@ function Panel({ session }) {
           <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />
         </div>
         <div style={{ display: tab === "facturacion" ? "block" : "none" }}>
-          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} />
+          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} miEmail={miEmail} />
         </div>
         <div style={{ display: tab === "cotizaciones" ? "block" : "none" }}>
-          <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} negocio={negocio} />
+          <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} negocio={negocio} miEmail={miEmail} />
         </div>
         <div style={{ display: tab === "recepcion" ? "block" : "none" }}>
           <RecepcionEquipos recepciones={recepciones} setRecepciones={setRecepciones} clientes={clientes} />
@@ -1818,6 +1825,7 @@ function PrintPreview({ doc, onClose, negocio }) {
                     <div className="hwp-doctype-num">{esFactura ? "NCF " : "No. "}{doc.numero}</div>
                     <div className="hwp-doctype-date">Fecha: {doc.fecha}</div>
                     {formatearFechaHora(doc.creadoEn) && <div className="hwp-doctype-date">Procesado: {formatearFechaHora(doc.creadoEn)}</div>}
+                    {doc.atendidoPor && <div className="hwp-doctype-date">Atendido por: {doc.atendidoPor}</div>}
                   </div>
                 </div>
                 <div className="hwp-rule" />
@@ -1871,6 +1879,7 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
                 <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
                 <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+                {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
                 <div>Cliente: {doc.clienteNombre}</div>
                 {doc.clienteNegocio && <div>Negocio: {doc.clienteNegocio}</div>}
                 {doc.clienteRnc && <div>RNC/Cédula: {doc.clienteRnc}</div>}
@@ -1920,7 +1929,7 @@ function PrintPreview({ doc, onClose, negocio }) {
   );
 }
 
-function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio }) {
+function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -1959,7 +1968,8 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function guardar() {
     const cliente = clientes.find((c) => c.id === clienteId);
-    if (!cliente || items.every((i) => !i.nombre)) return;
+    if (!cliente) { alert("Selecciona el cliente antes de guardar la factura."); return; }
+    if (items.every((i) => !i.nombre)) { alert("Agrega al menos un producto o servicio."); return; }
     const esManual = tipoComprobante !== "Consumidor Final" && tipoComprobante !== "Factura de Consumo";
     if (esManual && !ncfManualTexto.trim()) { alert("Escribe el número de comprobante para este tipo de factura."); return; }
     if (editingId) {
@@ -1971,7 +1981,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     } else {
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis,
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis,
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
@@ -1986,7 +1996,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function abrirImpresion(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId);
-    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn });
+    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappFactura(f) {
@@ -2097,7 +2107,7 @@ function nextCot(cotizaciones) {
   return "COT-" + String(max + 1).padStart(4, "0");
 }
 
-function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setProductos, setFacturas, setTab, negocio }) {
+function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setProductos, setFacturas, setTab, negocio, miEmail }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -2121,13 +2131,14 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function guardar() {
     const cliente = clientes.find((c) => c.id === clienteId);
-    if (!cliente || items.every((i) => !i.nombre)) return;
+    if (!cliente) { alert("Selecciona el cliente antes de guardar la cotización."); return; }
+    if (items.every((i) => !i.nombre)) { alert("Agrega al menos un producto o servicio."); return; }
     if (editingId) {
       setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre) } : c)));
     } else {
       setCotizaciones([...cotizaciones, {
         id: uid(), numero: nextCot(cotizaciones), clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), items: items.filter((i) => i.nombre), estado: "Pendiente",
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), estado: "Pendiente",
       }]);
     }
     setOpen(false);
@@ -2141,7 +2152,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   function convertir(c) {
     setFacturas((prev) => [...prev, {
       id: uid(), ncf: nextNcf(prev), clienteId: null, clienteNombre: c.clienteNombre,
-      fecha: new Date().toISOString().slice(0, 10), items: c.items, metodo: "Efectivo", estado: "Pagada", abono: 0,
+      fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: c.items, metodo: "Efectivo", estado: "Pagada", abono: 0,
     }]);
     marcar(c.id, "Aprobada");
     setTab("facturacion");
@@ -2149,7 +2160,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, creadoEn: c.creadoEn });
+    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappCotizacion(c) {
