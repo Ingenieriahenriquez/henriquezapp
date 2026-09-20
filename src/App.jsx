@@ -562,17 +562,32 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
 
 function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
   const actual = negocioConfig[0] || BUSINESS;
-  const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "" });
+  const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "" });
   const [guardado, setGuardado] = useState(false);
+  const [errorLogo, setErrorLogo] = useState("");
   const cargadoRef = useRef(false);
 
   useEffect(() => {
     if (negocioConfig[0] && !cargadoRef.current) {
       const n = negocioConfig[0];
-      setForm({ nombre: n.nombre || "", eslogan: n.eslogan || "", direccion: n.direccion || "", telefono: n.telefono || "", rnc: n.rnc || "" });
+      setForm({ nombre: n.nombre || "", eslogan: n.eslogan || "", direccion: n.direccion || "", telefono: n.telefono || "", rnc: n.rnc || "", logo: n.logo || "", instagram: n.instagram || "" });
       cargadoRef.current = true;
     }
   }, [negocioConfig]);
+
+  function subirLogo(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorLogo("");
+    if (file.size > 350 * 1024) {
+      setErrorLogo("La imagen es muy pesada. Usa un logo más liviano (menos de 350KB) para que la app no se ponga lenta.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, logo: reader.result }));
+    reader.readAsDataURL(file);
+  }
 
   function guardar() {
     if (negocioConfig[0]) {
@@ -618,6 +633,21 @@ function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
         </FieldRow>
         <FieldRow label="RNC">
           <input className="hw-input" value={form.rnc} onChange={(e) => setForm({ ...form, rnc: e.target.value })} />
+        </FieldRow>
+        <FieldRow label="Instagram (para el código QR de la factura)">
+          <input className="hw-input" placeholder="https://instagram.com/tu_usuario" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} />
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Si lo llenas, el código QR de las facturas y cotizaciones llevará al cliente directo a tu Instagram en vez del resumen de la factura.</div>
+        </FieldRow>
+        <FieldRow label="Logo del negocio (opcional)">
+          {form.logo && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <img src={form.logo} alt="Logo" style={{ height: 48, borderRadius: 6, border: "1px solid var(--line)", background: "#fff", padding: 2 }} />
+              <button className="hw-btn ghost small" onClick={() => setForm({ ...form, logo: "" })}>Quitar logo</button>
+            </div>
+          )}
+          <input className="hw-input" type="file" accept="image/*" onChange={subirLogo} />
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Usa una imagen cuadrada o rectangular pequeña (PNG con fondo transparente se ve mejor). Aparecerá en las facturas y cotizaciones impresas.</div>
+          {errorLogo && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 4 }}>{errorLogo}</div>}
         </FieldRow>
         <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar cambios</button>
         {guardado && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Guardado — ya se actualizó en toda la app.</div>}
@@ -893,6 +923,9 @@ function Panel({ session }) {
         #hw-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
         .hwp-page{width:190mm;box-sizing:border-box;padding:8mm 7mm;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;color:#151A24;background-color:#ffffff;background-image:repeating-linear-gradient(45deg, rgba(16,24,39,0.045) 0, rgba(16,24,39,0.045) 1px, transparent 1px, transparent 15px),repeating-linear-gradient(-45deg, rgba(224,121,28,0.035) 0, rgba(224,121,28,0.035) 1px, transparent 1px, transparent 15px);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
         .hwp-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:10px;}
+        .hwp-logo{max-height:56px;max-width:100px;object-fit:contain;flex-shrink:0;}
+        .hw-paper-logo{max-height:34px;max-width:70px;object-fit:contain;flex-shrink:0;}
+        .hw-ticket-logo{max-height:44px;max-width:120px;object-fit:contain;display:block;margin:0 auto 4px;}
         .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:32px;color:#101827;line-height:1.15;}
         .hwp-slogan{font-style:italic;font-size:14.5px;color:#6B7280;margin-top:3px;}
         .hwp-contact{font-size:13.5px;color:#374151;margin-top:3px;}
@@ -1717,14 +1750,15 @@ function PrintPreview({ doc, onClose, negocio }) {
   const printQrRef = useRef(null);
 
   useEffect(() => {
+    const contenido = negocio.instagram && negocio.instagram.trim()
+      ? negocio.instagram.trim()
+      : `${negocio.nombre} | Comprobante: ${doc?.numero} | Fecha: ${doc?.fecha}`;
     if (qrRef.current && doc?.numero) {
-      const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
       QRCode.toCanvas(qrRef.current, contenido, { width: 100, margin: 1 }, (err) => {
         if (err) console.error("No se pudo generar el código QR:", err);
       });
     }
     if (printQrRef.current && doc?.numero) {
-      const contenido = `${negocio.nombre} | Comprobante: ${doc.numero} | Fecha: ${doc.fecha}`;
       QRCode.toCanvas(printQrRef.current, contenido, { width: 110, margin: 1 }, (err) => {
         if (err) console.error("No se pudo generar el código QR de impresión:", err);
       });
@@ -1751,6 +1785,7 @@ function PrintPreview({ doc, onClose, negocio }) {
         <div className="hw-paper-wrap">
           {formato === "carta" ? (
             <div className="hw-print-paper hw-paper-carta" ref={paperRef}>
+              {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-paper-logo" style={{ float: "right" }} />}
               <div className="hw-paper-h1">{negocio.nombre}</div>
               {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 11.5, color: "#666" }}>{negocio.eslogan}</div>}
               <div>{negocio.direccion}</div>
@@ -1787,6 +1822,7 @@ function PrintPreview({ doc, onClose, negocio }) {
           ) : (
             <div className="hw-print-paper hw-paper-ticket" ref={paperRef}>
               <div style={{ textAlign: "center" }}>
+                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo" />}
                 <div className="hw-paper-h1" style={{ fontSize: 12 }}>{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666" }}>{negocio.eslogan}</div>}
                 <div>{negocio.direccion}</div>
@@ -1826,11 +1862,14 @@ function PrintPreview({ doc, onClose, negocio }) {
             {formato === "carta" ? (
               <div className="hwp-page" ref={printPaperRef}>
                 <div className="hwp-header">
-                  <div>
-                    <div className="hwp-brand">{negocio.nombre}</div>
-                    {negocio.eslogan && <div className="hwp-slogan">{negocio.eslogan}</div>}
-                    <div className="hwp-contact">{negocio.direccion}</div>
-                    <div className="hwp-contact">Tel/WhatsApp: {negocio.telefono}</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    {negocio.logo && <img src={negocio.logo} alt="Logo" className="hwp-logo" />}
+                    <div>
+                      <div className="hwp-brand">{negocio.nombre}</div>
+                      {negocio.eslogan && <div className="hwp-slogan">{negocio.eslogan}</div>}
+                      <div className="hwp-contact">{negocio.direccion}</div>
+                      <div className="hwp-contact">Tel/WhatsApp: {negocio.telefono}</div>
+                    </div>
                   </div>
                   <div className="hwp-doctype">
                     <div className="hwp-doctype-label">{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
@@ -1884,6 +1923,7 @@ function PrintPreview({ doc, onClose, negocio }) {
               </div>
             ) : (
               <div className="hwp-ticket" ref={printPaperRef}>
+                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo" />}
                 <div className="hwp-t-h1">{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
                 <div style={{ textAlign: "center" }}>{negocio.direccion}</div>
@@ -2608,7 +2648,7 @@ function Inventario({ productos, setProductos }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [busqueda, setBusqueda] = useState("");
-  const [form, setForm] = useState({ nombre: "", codigo: "", categoria: "", costo: 0, precio: 0, stock: 0, minimo: 2 });
+  const [form, setForm] = useState({ nombre: "", codigo: "", categoria: "", costo: 0, precio: 0, stock: 0, minimo: 2, caracteristicas: "" });
   const [etiquetaProducto, setEtiquetaProducto] = useState(null);
 
   const filtrados = productos.filter((p) => {
@@ -2619,12 +2659,12 @@ function Inventario({ productos, setProductos }) {
 
   function abrirNuevo() {
     setEditingId(null);
-    setForm({ nombre: "", codigo: "", categoria: "", costo: 0, precio: 0, stock: 0, minimo: 2 });
+    setForm({ nombre: "", codigo: "", categoria: "", costo: 0, precio: 0, stock: 0, minimo: 2, caracteristicas: "" });
     setOpen(true);
   }
   function abrirEdicion(p) {
     setEditingId(p.id);
-    setForm({ nombre: p.nombre, codigo: p.codigo || "", categoria: p.categoria || "", costo: p.costo || 0, precio: p.precio || 0, stock: p.stock || 0, minimo: p.minimo || 2 });
+    setForm({ nombre: p.nombre, codigo: p.codigo || "", categoria: p.categoria || "", costo: p.costo || 0, precio: p.precio || 0, stock: p.stock || 0, minimo: p.minimo || 2, caracteristicas: p.caracteristicas || "" });
     setOpen(true);
   }
 
@@ -2694,6 +2734,9 @@ function Inventario({ productos, setProductos }) {
             <FieldRow label="Precio de venta"><input className="hw-input" type="number" value={form.precio} onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })} /></FieldRow>
             <FieldRow label="Stock inicial"><input className="hw-input" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} /></FieldRow>
             <FieldRow label="Stock mínimo (alerta)"><input className="hw-input" type="number" value={form.minimo} onChange={(e) => setForm({ ...form, minimo: Number(e.target.value) })} /></FieldRow>
+            <FieldRow label="Características / información adicional (opcional)">
+              <textarea className="hw-input" rows={3} style={{ resize: "vertical", fontFamily: "inherit" }} placeholder="Ej. Resolución 4MP, visión nocturna 30m, incluye fuente de poder..." value={form.caracteristicas} onChange={(e) => setForm({ ...form, caracteristicas: e.target.value })} />
+            </FieldRow>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 6 }} onClick={guardar}>{editingId ? "Actualizar producto" : "Guardar producto"}</button>
           </div>
         </div>
