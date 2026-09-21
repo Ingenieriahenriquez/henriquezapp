@@ -11,6 +11,7 @@ const CAMEL_TO_SNAKE = {
   esAdmin: "es_admin",
   tipoComprobante: "tipo_comprobante",
   ncfManual: "ncf_manual",
+  aplicaItbis: "aplicaitbis",
   montoApertura: "monto_apertura",
   montoCierre: "monto_cierre",
   montoEsperado: "monto_esperado",
