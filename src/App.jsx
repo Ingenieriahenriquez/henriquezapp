@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
@@ -1681,30 +1681,57 @@ async function guardarComoImagen(nodo, nombreArchivo) {
   }
 }
 
+async function generarPDFBlob(nodo, formato) {
+  const canvas = await html2canvas(nodo, { scale: 3, backgroundColor: "#ffffff" });
+  const imgData = canvas.toDataURL("image/png");
+  const pxToMm = 25.4 / (96 * 3);
+  const imgWidthMm = canvas.width * pxToMm;
+  const imgHeightMm = canvas.height * pxToMm;
+
+  let pdf;
+  if (formato === "ticket") {
+    pdf = new jsPDF({ unit: "mm", format: [imgWidthMm, imgHeightMm] });
+    pdf.addImage(imgData, "PNG", 0, 0, imgWidthMm, imgHeightMm);
+  } else {
+    pdf = new jsPDF({ unit: "mm", format: "letter" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const drawWidth = pageWidth - 20;
+    const drawHeight = (imgHeightMm * drawWidth) / imgWidthMm;
+    pdf.addImage(imgData, "PNG", 10, 10, drawWidth, drawHeight);
+  }
+  return pdf;
+}
+
 async function guardarComoPDF(nodo, nombreArchivo, formato) {
   if (!nodo) return;
   try {
-    const canvas = await html2canvas(nodo, { scale: 3, backgroundColor: "#ffffff" });
-    const imgData = canvas.toDataURL("image/png");
-    const pxToMm = 25.4 / (96 * 3);
-    const imgWidthMm = canvas.width * pxToMm;
-    const imgHeightMm = canvas.height * pxToMm;
-
-    let pdf;
-    if (formato === "ticket") {
-      pdf = new jsPDF({ unit: "mm", format: [imgWidthMm, imgHeightMm] });
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidthMm, imgHeightMm);
-    } else {
-      pdf = new jsPDF({ unit: "mm", format: "letter" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const drawWidth = pageWidth - 20;
-      const drawHeight = (imgHeightMm * drawWidth) / imgWidthMm;
-      pdf.addImage(imgData, "PNG", 10, 10, drawWidth, drawHeight);
-    }
+    const pdf = await generarPDFBlob(nodo, formato);
     pdf.save(nombreArchivo + ".pdf");
   } catch (e) {
     console.error("No se pudo generar el PDF:", e);
     alert("No se pudo generar el PDF. Prueba con \"Imprimir\" y elige \"Guardar como PDF\" en el diálogo.");
+  }
+}
+
+async function compartirComoPDF(nodo, nombreArchivo, formato, titulo) {
+  if (!nodo) return;
+  try {
+    const pdf = await generarPDFBlob(nodo, formato);
+    const blob = pdf.output("blob");
+    const archivo = new File([blob], nombreArchivo + ".pdf", { type: "application/pdf" });
+
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      await navigator.share({ files: [archivo], title: titulo || nombreArchivo });
+    } else {
+      // El navegador no soporta compartir archivos directamente (común en computadoras de escritorio):
+      // se descarga el PDF para que lo compartas manualmente.
+      pdf.save(nombreArchivo + ".pdf");
+      alert("Tu navegador no permite compartir directamente desde aquí, así que se descargó el PDF. Adjúntalo manualmente en WhatsApp, correo, etc.");
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return; // el usuario cerró el menú de compartir
+    console.error("No se pudo compartir el PDF:", e);
+    alert("No se pudo compartir el PDF. Prueba con \"Guardar PDF\" y compártelo manualmente.");
   }
 }
 
@@ -1967,16 +1994,19 @@ function PrintPreview({ doc, onClose, negocio }) {
           document.body
         )}
 
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button className="hw-btn" style={{ flex: "1 1 100%", justifyContent: "center" }} onClick={() => compartirComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato, `${esFactura ? "Factura" : "Cotización"} ${doc.numero}`)}>
+            <Share2 size={15} /> Compartir PDF
+          </button>
           <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
             <Download size={15} /> Guardar PDF
           </button>
-          <button className="hw-btn" style={{ flex: 1, justifyContent: "center" }} onClick={() => triggerPrint(formato)}>
+          <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => triggerPrint(formato)}>
             <Printer size={15} /> Imprimir
           </button>
         </div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-          "Guardar PDF" descarga el ticket como PDF (ideal para enviar por WhatsApp). "Imprimir" abre el diálogo de tu impresora física.
+          "Compartir PDF" abre el menú para enviarlo directo por WhatsApp, correo, etc. "Guardar PDF" lo descarga a tu dispositivo. "Imprimir" abre el diálogo de tu impresora física.
         </div>
       </div>
     </div>
