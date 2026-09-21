@@ -1713,10 +1713,10 @@ async function guardarComoPDF(nodo, nombreArchivo, formato) {
   }
 }
 
-async function compartirComoPDF(nodo, nombreArchivo, formato, titulo) {
+async function compartirComoPDF(nodo, nombreArchivo, formato, titulo, pdfPreGenerado) {
   if (!nodo) return;
   try {
-    const pdf = await generarPDFBlob(nodo, formato);
+    const pdf = pdfPreGenerado || (await generarPDFBlob(nodo, formato));
     const blob = pdf.output("blob");
     const archivo = new File([blob], nombreArchivo + ".pdf", { type: "application/pdf" });
 
@@ -1771,10 +1771,12 @@ function EtiquetaPreview({ producto, onClose }) {
 
 function PrintPreview({ doc, onClose, negocio }) {
   const [formato, setFormato] = useState("carta");
+  const [pdfListo, setPdfListo] = useState(false);
   const paperRef = useRef(null);
   const printPaperRef = useRef(null);
   const qrRef = useRef(null);
   const printQrRef = useRef(null);
+  const pdfCacheRef = useRef(null); // { formato, pdf } ya generado, listo para compartir al instante
 
   useEffect(() => {
     const contenido = negocio.instagram && negocio.instagram.trim()
@@ -1790,6 +1792,25 @@ function PrintPreview({ doc, onClose, negocio }) {
         if (err) console.error("No se pudo generar el código QR de impresión:", err);
       });
     }
+  }, [doc?.numero, formato]);
+
+  // Prepara el PDF en segundo plano en cuanto se abre la vista previa (o cambia el formato),
+  // para que al presionar "Compartir PDF" el navegador aún reconozca la acción como iniciada
+  // por el usuario (los celulares cancelan el menú de compartir si tarda mucho en generarse).
+  useEffect(() => {
+    setPdfListo(false);
+    pdfCacheRef.current = null;
+    if (!doc?.numero) return;
+    const t = setTimeout(async () => {
+      try {
+        const pdf = await generarPDFBlob(printPaperRef.current, formato);
+        pdfCacheRef.current = { formato, pdf };
+        setPdfListo(true);
+      } catch (e) {
+        console.error("No se pudo pre-generar el PDF:", e);
+      }
+    }, 400);
+    return () => clearTimeout(t);
   }, [doc?.numero, formato]);
 
   if (!doc) return null;
@@ -1995,8 +2016,11 @@ function PrintPreview({ doc, onClose, negocio }) {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-          <button className="hw-btn" style={{ flex: "1 1 100%", justifyContent: "center" }} onClick={() => compartirComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato, `${esFactura ? "Factura" : "Cotización"} ${doc.numero}`)}>
-            <Share2 size={15} /> Compartir PDF
+          <button className="hw-btn" style={{ flex: "1 1 100%", justifyContent: "center" }} onClick={() => {
+            const cache = pdfCacheRef.current && pdfCacheRef.current.formato === formato ? pdfCacheRef.current.pdf : null;
+            compartirComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato, `${esFactura ? "Factura" : "Cotización"} ${doc.numero}`, cache);
+          }}>
+            <Share2 size={15} /> Compartir PDF{!pdfListo && <span style={{ fontSize: 11, opacity: 0.75, marginLeft: 4 }}>(preparando...)</span>}
           </button>
           <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => guardarComoPDF(printPaperRef.current, `${esFactura ? "factura" : "cotizacion"}-${doc.numero}`, formato)}>
             <Download size={15} /> Guardar PDF
