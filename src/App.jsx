@@ -120,6 +120,7 @@ const NAV = [
   { id: "recepcion", label: "Recepción equipos", icon: Wrench },
   { id: "ordenes", label: "Órdenes de trabajo", icon: Hammer },
   { id: "inventario", label: "Inventario", icon: Package },
+  { id: "compras", label: "Compras a suplidores", icon: ShoppingCart },
   { id: "reportes", label: "Reportes", icon: BarChart3 },
   { id: "usuarios", label: "Usuarios", icon: UserCog },
   { id: "codigobarras", label: "Código de barras · Consulta", icon: Barcode },
@@ -249,7 +250,7 @@ function ChatSoporte({ negocio }) {
   );
 }
 
-function Reportes({ facturas, abonosPagos }) {
+function Reportes({ facturas, abonosPagos, productos = [] }) {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [desde, setDesde] = useState(hace30);
@@ -263,6 +264,26 @@ function Reportes({ facturas, abonosPagos }) {
   const totalFacturado = enRango.reduce((s, f) => s + calcTotal(f.items, f.aplicaItbis).total, 0);
   const cantFacturas = enRango.length;
   const promedio = cantFacturas ? totalFacturado / cantFacturas : 0;
+
+  // Ganancia estimada: compara lo vendido contra el costo ACTUAL de cada producto
+  // (el que se actualiza solo cuando registras una compra a suplidor). Si el costo
+  // de un producto cambió después de la venta, esto usa el costo más reciente, no
+  // el de ese momento exacto — es un estimado, no una contabilidad exacta.
+  const costoPorNombre = useMemo(() => {
+    const m = {};
+    productos.forEach((p) => { m[p.nombre] = Number(p.costo) || 0; });
+    return m;
+  }, [productos]);
+
+  const gananciaEstimada = useMemo(() => {
+    return enRango.reduce((s, f) => {
+      const gananciaFactura = (f.items || []).reduce((s2, it) => {
+        const costo = costoPorNombre[it.nombre] ?? 0;
+        return s2 + (Number(it.precio) - costo) * Number(it.cantidad);
+      }, 0);
+      return s + gananciaFactura;
+    }, 0);
+  }, [enRango, costoPorNombre]);
 
   const totalCobrado = enRango.reduce((s, f) => {
     const total = calcTotal(f.items, f.aplicaItbis).total;
@@ -324,6 +345,14 @@ function Reportes({ facturas, abonosPagos }) {
           <div className="hw-kpi-label">Promedio por factura</div>
           <div className="hw-kpi-value">{money(promedio)}</div>
         </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--green-soft)" }}><Coins size={17} color="var(--green)" /></div></div>
+          <div className="hw-kpi-label">Ganancia estimada</div>
+          <div className="hw-kpi-value" style={{ color: "var(--green)" }}>{money(gananciaEstimada)}</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: -8, marginBottom: 16 }}>
+        La "Ganancia estimada" compara lo vendido contra el costo actual de cada producto en Inventario (el que se actualiza solo al registrar una compra a suplidor). Es un estimado — si el costo de un producto cambió después de venderlo, usa el costo más reciente.
       </div>
 
       <div className="hw-panel" style={{ marginBottom: 16 }}>
@@ -788,6 +817,7 @@ function Panel({ session }) {
   const [cajaMovimientos, setCajaMovimientos] = useSupabaseState("caja_movimientos");
   const [negocioConfig, setNegocioConfig] = useSupabaseState("negocio_config");
   const [abonosPagos, setAbonosPagos] = useSupabaseState("abonos_pagos");
+  const [compras, setCompras] = useSupabaseState("compras");
   const negocio = negocioConfig[0] || BUSINESS;
 
   const miEmail = session?.user?.email || "";
@@ -1143,7 +1173,10 @@ function Panel({ session }) {
         <div style={{ display: tab === "inventario" ? "block" : "none" }}>
           <Inventario productos={productos} setProductos={setProductos} />
         </div>
-        <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} /></div>
+        <div style={{ display: tab === "compras" ? "block" : "none" }}>
+          <Compras compras={compras} setCompras={setCompras} productos={productos} setProductos={setProductos} />
+        </div>
+        <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
@@ -1177,6 +1210,7 @@ const TILES = [
   { id: "cotizaciones", label: "Cotizaciones", icon: ClipboardList, from: "#E0952E", to: "#B9720F" },
   { id: "recepcion", label: "Recepción\nequipos", icon: Wrench, from: "#9A6BD1", to: "#7448AC" },
   { id: "ordenes", label: "Órdenes de\ntrabajo", icon: Hammer, from: "#1D9A7C", to: "#116651" },
+  { id: "compras", label: "Compras a\nsuplidores", icon: ShoppingCart, from: "#C2542A", to: "#933F1F" },
   { id: "reportes", label: "Reportes", icon: BarChart3, from: "#3F8FE0", to: "#2B67AC" },
   { id: "usuarios", label: "Usuarios", icon: UserCog, from: "#6B7280", to: "#454A52" },
   { id: "codigobarras", label: "Código de\nbarras · Consulta", icon: Barcode, from: "#1F2937", to: "#0F1520" },
@@ -2796,6 +2830,192 @@ function Inventario({ productos, setProductos }) {
         </div>
       )}
       <EtiquetaPreview producto={etiquetaProducto} onClose={() => setEtiquetaProducto(null)} />
+    </div>
+  );
+}
+
+function CompraItemsEditor({ items, setItems, productos }) {
+  const [abiertoIdx, setAbiertoIdx] = useState(null);
+
+  function update(idx, field, value) {
+    const next = [...items];
+    next[idx] = { ...next[idx], [field]: value };
+    setItems(next);
+  }
+  function addItem() {
+    setItems([...items, { productoId: null, nombre: "", cantidad: 1, costoUnitario: 0 }]);
+  }
+  function removeItem(idx) {
+    setItems(items.filter((_, i) => i !== idx));
+  }
+  function seleccionarProducto(idx, p) {
+    const next = [...items];
+    next[idx] = { productoId: p.id, nombre: p.nombre, cantidad: next[idx].cantidad || 1, costoUnitario: p.costo || 0 };
+    setItems(next);
+    setAbiertoIdx(null);
+  }
+  function alEscribir(idx, texto) {
+    // Si el usuario cambia el texto a mano, ya no queda ligado a un producto existente
+    const next = [...items];
+    next[idx] = { ...next[idx], nombre: texto, productoId: null };
+    setItems(next);
+    setAbiertoIdx(idx);
+  }
+  function sugerenciasPara(texto) {
+    const q = (texto || "").trim().toLowerCase();
+    if (!q) return [];
+    return productos.filter((p) => p.nombre?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q)).slice(0, 6);
+  }
+
+  return (
+    <div>
+      {items.map((it, idx) => {
+        const sugs = abiertoIdx === idx ? sugerenciasPara(it.nombre) : [];
+        return (
+          <div className="hw-line-item" key={idx} style={{ position: "relative" }}>
+            <input
+              className="hw-input hw-li-nombre"
+              placeholder="Nombre o código del producto..."
+              value={it.nombre}
+              onChange={(e) => alEscribir(idx, e.target.value)}
+              onFocus={() => setAbiertoIdx(idx)}
+              onBlur={() => setTimeout(() => setAbiertoIdx((v) => (v === idx ? null : v)), 150)}
+            />
+            {sugs.length > 0 && (
+              <div className="hw-suggest">
+                {sugs.map((p) => (
+                  <div key={p.id} className="hw-suggest-item" onMouseDown={() => seleccionarProducto(idx, p)}>
+                    <span>{p.nombre}</span>
+                    {p.codigo && <span className="hw-suggest-code">{p.codigo}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <input className="hw-input hw-li-cant" type="number" min={1} value={it.cantidad} onChange={(e) => update(idx, "cantidad", Number(e.target.value))} />
+            <input className="hw-input hw-li-precio" type="number" value={it.costoUnitario} onChange={(e) => update(idx, "costoUnitario", Number(e.target.value))} />
+            <div className="hw-li-actions">
+              <button className="hw-close" onClick={() => removeItem(idx)}><X size={15} /></button>
+            </div>
+          </div>
+        );
+      })}
+      <button className="hw-btn ghost small" onClick={addItem}><Plus size={13} /> Agregar línea</button>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>
+        Si eliges un producto que ya tienes en Inventario, al guardar la compra se le suma el stock y se actualiza su costo automáticamente. Si escribes un nombre que no coincide con ningún producto existente, la línea queda guardada solo como referencia (no toca Inventario).
+      </div>
+    </div>
+  );
+}
+
+function Compras({ compras, setCompras, productos, setProductos }) {
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [suplidor, setSuplidor] = useState("");
+  const [facturaSuplidor, setFacturaSuplidor] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [items, setItems] = useState([{ productoId: null, nombre: "", cantidad: 1, costoUnitario: 0 }]);
+
+  const totalItems = items.reduce((s, i) => s + (Number(i.cantidad) || 0) * (Number(i.costoUnitario) || 0), 0);
+
+  function abrirNueva() {
+    setEditingId(null);
+    setSuplidor("");
+    setFacturaSuplidor("");
+    setFecha(new Date().toISOString().slice(0, 10));
+    setItems([{ productoId: null, nombre: "", cantidad: 1, costoUnitario: 0 }]);
+    setOpen(true);
+  }
+
+  function guardar() {
+    const validos = items.filter((i) => i.nombre.trim() && i.cantidad > 0);
+    if (!suplidor.trim()) { alert("Escribe el nombre del suplidor antes de guardar."); return; }
+    if (validos.length === 0) { alert("Agrega al menos un producto con cantidad antes de guardar."); return; }
+
+    const compra = {
+      id: uid(),
+      suplidor: suplidor.trim(),
+      facturaSuplidor: facturaSuplidor.trim(),
+      fecha,
+      items: validos,
+      total: totalItems,
+      creadoEn: new Date().toISOString(),
+    };
+    setCompras([...compras, compra]);
+
+    // Actualiza stock y costo de los productos ligados a las líneas de esta compra
+    const ajustes = {};
+    validos.forEach((i) => {
+      if (!i.productoId) return;
+      const prev = ajustes[i.productoId] || { sumaStock: 0, costoUnitario: i.costoUnitario };
+      ajustes[i.productoId] = { sumaStock: prev.sumaStock + Number(i.cantidad), costoUnitario: i.costoUnitario };
+    });
+    if (Object.keys(ajustes).length > 0) {
+      setProductos(productos.map((p) => {
+        const a = ajustes[p.id];
+        if (!a) return p;
+        return { ...p, stock: (p.stock || 0) + a.sumaStock, costo: a.costoUnitario };
+      }));
+    }
+
+    setOpen(false);
+  }
+
+  const totalGeneral = compras.reduce((s, c) => s + (c.total || 0), 0);
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Compras a suplidores</div><div className="hw-sub">Registra lo que compras para calcular tu costo real y ganancia</div></div>
+        <button className="hw-btn" onClick={abrirNueva}><Plus size={15} /> Nueva compra</button>
+      </div>
+
+      <div className="hw-grid" style={{ marginBottom: 16 }}>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--accent-soft)" }}><ShoppingCart size={17} color="var(--accent2)" /></div></div>
+          <div className="hw-kpi-label">Compras registradas</div>
+          <div className="hw-kpi-value">{compras.length}</div>
+        </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--red-soft)" }}><Wallet size={17} color="var(--red)" /></div></div>
+          <div className="hw-kpi-label">Total comprado (histórico)</div>
+          <div className="hw-kpi-value">{money(totalGeneral)}</div>
+        </div>
+      </div>
+
+      <div className="hw-panel">
+        <table className="hw-table hw-t-compras">
+          <thead><tr><th>Fecha</th><th>Suplidor</th><th>Factura/recibo</th><th>Productos</th><th>Total</th></tr></thead>
+          <tbody>
+            {[...compras].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((c) => (
+              <tr key={c.id}>
+                <td>{c.fecha}</td>
+                <td>{c.suplidor}</td>
+                <td className="hw-mono">{c.facturaSuplidor || "—"}</td>
+                <td>{(c.items || []).map((i) => i.nombre).join(", ")}</td>
+                <td>{money(c.total)}</td>
+              </tr>
+            ))}
+            {compras.length === 0 && <tr><td colSpan={5} className="hw-empty">Aún no has registrado ninguna compra</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {open && (
+        <div className="hw-modal-overlay" onClick={() => setOpen(false)}>
+          <div className="hw-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">Nueva compra a suplidor</div><button className="hw-close" onClick={() => setOpen(false)}><X size={18} /></button></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Suplidor *"><input className="hw-input" value={suplidor} onChange={(e) => setSuplidor(e.target.value)} placeholder="Nombre del suplidor" /></FieldRow>
+              <FieldRow label="Factura o recibo del suplidor (opcional)"><input className="hw-input" value={facturaSuplidor} onChange={(e) => setFacturaSuplidor(e.target.value)} /></FieldRow>
+            </div>
+            <FieldRow label="Fecha"><input className="hw-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></FieldRow>
+            <div className="hw-label" style={{ marginTop: 10, marginBottom: 4 }}>Productos comprados</div>
+            <CompraItemsEditor items={items} setItems={setItems} productos={productos} />
+            <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 10 }}>Total: {money(totalItems)}</div>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar compra</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
