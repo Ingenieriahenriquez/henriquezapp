@@ -589,12 +589,38 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   );
 }
 
-function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
+function Ajustes({
+  negocioConfig, setNegocioConfig, esAdmin,
+  setClientes, setFacturas, setCotizaciones, setProductos, setCompras,
+  setRecepciones, setOrdenes, setCajaSesiones, setCajaMovimientos, setAbonosPagos,
+}) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "" });
   const [guardado, setGuardado] = useState(false);
   const [errorLogo, setErrorLogo] = useState("");
+  const [confirmacionReset, setConfirmacionReset] = useState("");
   const cargadoRef = useRef(false);
+  const FRASE_RESET = "BORRAR TODO";
+
+  function reiniciarSistema() {
+    if (confirmacionReset.trim().toUpperCase() !== FRASE_RESET) return;
+    const seguro = window.confirm(
+      "Esto va a borrar PERMANENTEMENTE: clientes, facturas, cotizaciones, productos, compras a suplidores, recepciones de equipos, órdenes de trabajo, caja y abonos.\n\nEl logo, los datos del negocio y los usuarios con acceso NO se van a borrar.\n\nEsta acción no se puede deshacer. ¿Estás completamente seguro?"
+    );
+    if (!seguro) return;
+    setClientes([]);
+    setFacturas([]);
+    setCotizaciones([]);
+    setProductos([]);
+    setCompras([]);
+    setRecepciones([]);
+    setOrdenes([]);
+    setCajaSesiones([]);
+    setCajaMovimientos([]);
+    setAbonosPagos([]);
+    setConfirmacionReset("");
+    alert("Listo — el sistema quedó reiniciado. Todos los datos del negocio se borraron.");
+  }
 
   useEffect(() => {
     if (negocioConfig[0] && !cargadoRef.current) {
@@ -680,6 +706,26 @@ function Ajustes({ negocioConfig, setNegocioConfig, esAdmin }) {
         </FieldRow>
         <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar cambios</button>
         {guardado && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Guardado — ya se actualizó en toda la app.</div>}
+      </div>
+
+      <div className="hw-panel" style={{ padding: 20, maxWidth: 480, marginTop: 20, border: "1px solid var(--red)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "var(--red)", marginBottom: 6 }}>
+          <ShieldAlert size={18} /> Zona de peligro — Reiniciar sistema
+        </div>
+        <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>
+          Esto borra PERMANENTEMENTE todos los clientes, facturas, cotizaciones, productos, compras, recepciones, órdenes de trabajo, caja y abonos. No se puede deshacer. El logo, los datos del negocio y los usuarios con acceso se mantienen.
+        </div>
+        <FieldRow label={`Para confirmar, escribe exactamente: ${FRASE_RESET}`}>
+          <input className="hw-input" value={confirmacionReset} onChange={(e) => setConfirmacionReset(e.target.value)} placeholder={FRASE_RESET} />
+        </FieldRow>
+        <button
+          className="hw-btn soft-red"
+          style={{ width: "100%", justifyContent: "center", marginTop: 6 }}
+          disabled={confirmacionReset.trim().toUpperCase() !== FRASE_RESET}
+          onClick={reiniciarSistema}
+        >
+          <AlertTriangle size={15} /> Borrar todos los datos y reiniciar
+        </button>
       </div>
     </div>
   );
@@ -1182,7 +1228,15 @@ function Panel({ session }) {
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Graficas facturas={facturas} cotizaciones={cotizaciones} productos={productos} /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
-        <div style={{ display: tab === "ajustes" ? "block" : "none" }}><Ajustes negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} /></div>
+        <div style={{ display: tab === "ajustes" ? "block" : "none" }}>
+          <Ajustes
+            negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin}
+            setClientes={setClientes} setFacturas={setFacturas} setCotizaciones={setCotizaciones}
+            setProductos={setProductos} setCompras={setCompras} setRecepciones={setRecepciones}
+            setOrdenes={setOrdenes} setCajaSesiones={setCajaSesiones} setCajaMovimientos={setCajaMovimientos}
+            setAbonosPagos={setAbonosPagos}
+          />
+        </div>
         <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><ChatSoporte negocio={negocio} /></div>
       </main>
     </div>
