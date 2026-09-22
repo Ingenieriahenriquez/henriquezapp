@@ -20,6 +20,7 @@ const CAMEL_TO_SNAKE = {
   fechaHora: "fecha_hora",
   facturaId: "factura_id",
   creadoEn: "creado_en",
+  facturaSuplidor: "factura_suplidor",
 };
 const SNAKE_TO_CAMEL = Object.fromEntries(
   Object.entries(CAMEL_TO_SNAKE).map(([camel, snake]) => [snake, camel])
