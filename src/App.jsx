@@ -1857,7 +1857,7 @@ function EtiquetaPreview({ producto, onClose }) {
   );
 }
 
-function PrintPreview({ doc, onClose, negocio }) {
+function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const [formato, setFormato] = useState("carta");
   const [pdfListo, setPdfListo] = useState(false);
   const paperRef = useRef(null);
@@ -1904,6 +1904,10 @@ function PrintPreview({ doc, onClose, negocio }) {
   if (!doc) return null;
   const totals = calcTotal(doc.items, doc.aplicaItbis);
   const esFactura = doc.tipo === "Factura";
+  function caracteristicasDe(nombre) {
+    const p = productos.find((p) => p.nombre === nombre);
+    return (p && p.caracteristicas && p.caracteristicas.trim()) || "";
+  }
 
   return (
     <div className="hw-modal-overlay" onClick={onClose}>
@@ -1940,9 +1944,18 @@ function PrintPreview({ doc, onClose, negocio }) {
               <table className="hw-paper-table" style={{ width: "100%" }}>
                 <thead><tr style={{ textAlign: "left", fontWeight: 700 }}><td>Descripción</td><td>Cant.</td><td>Precio</td><td style={{ textAlign: "right" }}>Total</td></tr></thead>
                 <tbody>
-                  {doc.items.map((it, i) => (
-                    <tr key={i}><td>{it.nombre}</td><td>{it.cantidad}</td><td>{money(it.precio)}</td><td style={{ textAlign: "right" }}>{money(it.cantidad * it.precio)}</td></tr>
-                  ))}
+                  {doc.items.map((it, i) => {
+                    const carac = caracteristicasDe(it.nombre);
+                    return (
+                      <tr key={i}>
+                        <td>
+                          {it.nombre}
+                          {carac && <div style={{ fontSize: 10.5, color: "#777", marginTop: 2 }}>{carac}</div>}
+                        </td>
+                        <td>{it.cantidad}</td><td>{money(it.precio)}</td><td style={{ textAlign: "right" }}>{money(it.cantidad * it.precio)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="hw-paper-line" />
@@ -1972,15 +1985,19 @@ function PrintPreview({ doc, onClose, negocio }) {
               {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
               <div>Cliente: {doc.clienteNombre}</div>
               <div className="hw-paper-line" />
-              {doc.items.map((it, i) => (
-                <div key={i} style={{ marginBottom: 4 }}>
-                  <div>{it.nombre}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>{it.cantidad} x {money(it.precio)}</span>
-                    <span>{money(it.cantidad * it.precio)}</span>
+              {doc.items.map((it, i) => {
+                const carac = caracteristicasDe(it.nombre);
+                return (
+                  <div key={i} style={{ marginBottom: 4 }}>
+                    <div>{it.nombre}</div>
+                    {carac && <div style={{ fontSize: 10, color: "#777" }}>{carac}</div>}
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{it.cantidad} x {money(it.precio)}</span>
+                      <span>{money(it.cantidad * it.precio)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div className="hw-paper-line" />
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
@@ -2030,9 +2047,18 @@ function PrintPreview({ doc, onClose, negocio }) {
                 <table className="hwp-table">
                   <thead><tr><td>Descripción</td><td>Cant.</td><td>Precio</td><td style={{ textAlign: "right" }}>Total</td></tr></thead>
                   <tbody>
-                    {doc.items.map((it, i) => (
-                      <tr key={i}><td>{it.nombre}</td><td>{it.cantidad}</td><td>{money(it.precio)}</td><td style={{ textAlign: "right" }}>{money(it.cantidad * it.precio)}</td></tr>
-                    ))}
+                    {doc.items.map((it, i) => {
+                      const carac = caracteristicasDe(it.nombre);
+                      return (
+                        <tr key={i}>
+                          <td>
+                            {it.nombre}
+                            {carac && <div style={{ fontSize: 10.5, color: "#6B7280", marginTop: 2, fontWeight: 400 }}>{carac}</div>}
+                          </td>
+                          <td>{it.cantidad}</td><td>{money(it.precio)}</td><td style={{ textAlign: "right" }}>{money(it.cantidad * it.precio)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 <div className="hwp-bottom">
@@ -2077,15 +2103,19 @@ function PrintPreview({ doc, onClose, negocio }) {
                 {doc.clienteCorreo && <div>Correo: {doc.clienteCorreo}</div>}
                 {doc.clienteDireccion && <div>Dirección: {doc.clienteDireccion}</div>}
                 <div className="hwp-t-line" />
-                {doc.items.map((it, i) => (
-                  <div key={i} style={{ marginBottom: 4 }}>
-                    <div>{it.nombre}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>{it.cantidad} x {money(it.precio)}</span>
-                      <span>{money(it.cantidad * it.precio)}</span>
+                {doc.items.map((it, i) => {
+                  const carac = caracteristicasDe(it.nombre);
+                  return (
+                    <div key={i} style={{ marginBottom: 4 }}>
+                      <div>{it.nombre}</div>
+                      {carac && <div style={{ fontSize: 10, color: "#6B7280" }}>{carac}</div>}
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>{it.cantidad} x {money(it.precio)}</span>
+                        <span>{money(it.cantidad * it.precio)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="hwp-t-line" />
                 <div className="hwp-t-total"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                 <div className="hwp-t-total"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
@@ -2292,7 +2322,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
           </div>
         </div>
       )}
-      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} />
+      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} productos={productos} />
     </div>
   );
 }
@@ -2425,7 +2455,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
           </div>
         </div>
       )}
-      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} />
+      <PrintPreview doc={printDoc} onClose={() => setPrintDoc(null)} negocio={negocio} productos={productos} />
     </div>
   );
 }
