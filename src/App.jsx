@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2 } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
@@ -921,8 +921,14 @@ function UsuariosAdmin({ permisos, setPermisos, miEmail }) {
 }
 
 function Login() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem("hw_correo_recordado") || ""; } catch (e) { return ""; }
+  });
   const [password, setPassword] = useState("");
+  const [verPassword, setVerPassword] = useState(false);
+  const [recordar, setRecordar] = useState(() => {
+    try { return !!localStorage.getItem("hw_correo_recordado"); } catch (e) { return false; }
+  });
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
   const [modo, setModo] = useState("login"); // "login" | "recuperar"
@@ -934,7 +940,11 @@ function Login() {
     setCargando(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setCargando(false);
-    if (error) setError("Correo o contraseña incorrectos.");
+    if (error) { setError("Correo o contraseña incorrectos."); return; }
+    try {
+      if (recordar) localStorage.setItem("hw_correo_recordado", email);
+      else localStorage.removeItem("hw_correo_recordado");
+    } catch (e) { /* si el navegador bloquea localStorage, no pasa nada grave */ }
   }
 
   async function enviarRecuperacion(e) {
@@ -947,25 +957,46 @@ function Login() {
     setEnviado(true);
   }
 
-  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 14px", fontSize: 14 };
-  const btnStyle = { width: "100%", marginTop: 14, padding: "11px 0", borderRadius: 10, border: "none", background: "#177A63", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" };
-  const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
+  const pageStyle = {
+    minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    background: "radial-gradient(circle at 30% 20%, #1B2A41 0%, #0c1420 55%, #070c14 100%)",
+  };
+  const glassCard = {
+    position: "relative", width: 360, maxWidth: "100%", padding: "56px 26px 28px",
+    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: 18, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+  };
+  const avatar = {
+    position: "absolute", top: -34, left: "50%", transform: "translateX(-50%)",
+    width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+  };
+  const fieldWrap = { position: "relative", margin: "0 0 14px" };
+  const fieldIcon = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.65, pointerEvents: "none" };
+  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 12px 11px 38px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 14 };
+  const btnStyle = { width: "100%", marginTop: 4, padding: "12px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #177A63, #0F5C49)", color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", boxShadow: "0 6px 16px rgba(23,122,99,0.4)" };
+  const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.65)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
 
   if (modo === "recuperar") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
-        <form onSubmit={enviarRecuperacion} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
-          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Recuperar contraseña</div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
+      <div style={pageStyle}>
+        <form onSubmit={enviarRecuperacion} style={glassCard}>
+          <div style={avatar}><Mail size={28} color="#fff" /></div>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: "#fff", marginBottom: 4, textAlign: "center" }}>Recuperar contraseña</div>
+          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginBottom: 20, textAlign: "center" }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
           {enviado ? (
-            <div style={{ color: "#8fe3c0", fontSize: 13.5, marginBottom: 4, lineHeight: 1.5 }}>
+            <div style={{ color: "#8fe3c0", fontSize: 13.5, marginBottom: 4, lineHeight: 1.5, textAlign: "center" }}>
               Listo — revisa el correo <b>{email}</b>. Te enviamos un enlace para crear una nueva contraseña (si no lo ves, revisa la carpeta de spam).
             </div>
           ) : (
             <>
-              <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Correo</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-              {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+              <div style={fieldWrap}>
+                <Mail size={16} style={fieldIcon} color="#fff" />
+                <input type="email" required placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+              </div>
+              {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10, textAlign: "center" }}>{error}</div>}
               <button type="submit" disabled={cargando} style={btnStyle}>{cargando ? "Enviando..." : "Enviar enlace de recuperación"}</button>
             </>
           )}
@@ -976,16 +1007,33 @@ function Login() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
-      <form onSubmit={entrar} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
-        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Ingeniería y Tecnología Henríquez</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Inicia sesión para continuar</div>
-        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Correo</label>
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Contraseña</label>
-        <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-          style={{ ...inputStyle, margin: "6px 0 6px" }} />
-        {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+    <div style={pageStyle}>
+      <form onSubmit={entrar} style={glassCard}>
+        <div style={avatar}><User size={30} color="#fff" /></div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, color: "#fff", marginBottom: 3, textAlign: "center" }}>Ingeniería y Tecnología Henríquez</div>
+        <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginBottom: 22, textAlign: "center" }}>Inicia sesión para continuar</div>
+
+        <div style={fieldWrap}>
+          <User size={16} style={fieldIcon} color="#fff" />
+          <input type="email" required placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={fieldWrap}>
+          <Lock size={16} style={fieldIcon} color="#fff" />
+          <input type={verPassword ? "text" : "password"} required placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)}
+            style={{ ...inputStyle, paddingRight: 38 }} />
+          <button type="button" onClick={() => setVerPassword((v) => !v)}
+            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 0, cursor: "pointer", opacity: 0.65, display: "flex" }}
+            aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>
+            {verPassword ? <EyeOff size={16} color="#fff" /> : <Eye size={16} color="#fff" />}
+          </button>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "rgba(255,255,255,0.75)", marginBottom: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} style={{ width: 14, height: 14 }} />
+          Recordar mi correo
+        </label>
+
+        {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginTop: 6, marginBottom: 6, textAlign: "center" }}>{error}</div>}
         <button type="submit" disabled={cargando} style={btnStyle}>
           {cargando ? "Entrando..." : "Entrar"}
         </button>
