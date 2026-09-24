@@ -589,6 +589,56 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   );
 }
 
+function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos }) {
+  const [descargando, setDescargando] = useState(false);
+
+  function descargarRespaldo() {
+    setDescargando(true);
+    try {
+      const respaldo = {
+        tipo: "respaldo-henriquez-sistema",
+        version: 1,
+        generadoEn: new Date().toISOString(),
+        negocio: negocioConfig[0] || null,
+        clientes, facturas, cotizaciones, productos, compras,
+        recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos,
+      };
+      const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const fecha = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `respaldo-henriquez-${fecha}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("No se pudo generar el respaldo:", e);
+      alert("No se pudo generar el respaldo. Intenta de nuevo.");
+    }
+    setDescargando(false);
+  }
+
+  const totalRegistros = (clientes?.length || 0) + (facturas?.length || 0) + (cotizaciones?.length || 0) + (productos?.length || 0) + (compras?.length || 0);
+
+  return (
+    <div className="hw-panel" style={{ padding: 20, maxWidth: 480, marginTop: 20 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Respaldo de datos</div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
+        Descarga una copia completa de toda tu información (clientes, facturas, cotizaciones, productos, compras, recepciones, órdenes, caja y abonos) en un archivo. Guárdalo en un lugar seguro (Google Drive, tu correo, una memoria USB) — te recomendamos hacerlo todos los días, por ejemplo al mediodía, o antes de cualquier cambio importante.
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Actualmente hay {totalRegistros} registros en total.</div>
+      <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} disabled={descargando} onClick={descargarRespaldo}>
+        <Download size={15} /> {descargando ? "Preparando..." : "Descargar respaldo completo"}
+      </button>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>
+        Si alguna vez necesitas restaurar esta información porque algo salió mal, envíanos este archivo y lo usamos para reconstruir tus datos.
+      </div>
+    </div>
+  );
+}
+
 function CambiarContrasenaPanel({ miEmail }) {
   const [actual, setActual] = useState(false);
   const [nueva, setNueva] = useState("");
@@ -638,6 +688,8 @@ function Ajustes({
   negocioConfig, setNegocioConfig, esAdmin, miEmail,
   setClientes, setFacturas, setCotizaciones, setProductos, setCompras,
   setRecepciones, setOrdenes, setCajaSesiones, setCajaMovimientos, setAbonosPagos,
+  clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes,
+  permisos, cajaSesiones, cajaMovimientos, abonosPagos,
 }) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "" });
@@ -753,6 +805,12 @@ function Ajustes({
         <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar cambios</button>
         {guardado && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Guardado — ya se actualizó en toda la app.</div>}
       </div>
+
+      <RespaldoPanel
+        negocioConfig={negocioConfig} clientes={clientes} facturas={facturas} cotizaciones={cotizaciones}
+        productos={productos} compras={compras} recepciones={recepciones} ordenes={ordenes}
+        permisos={permisos} cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
+      />
 
       <CambiarContrasenaPanel miEmail={miEmail} />
 
@@ -1365,6 +1423,9 @@ function Panel({ session }) {
             setProductos={setProductos} setCompras={setCompras} setRecepciones={setRecepciones}
             setOrdenes={setOrdenes} setCajaSesiones={setCajaSesiones} setCajaMovimientos={setCajaMovimientos}
             setAbonosPagos={setAbonosPagos}
+            clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos}
+            compras={compras} recepciones={recepciones} ordenes={ordenes} permisos={permisos}
+            cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
           />
         </div>
         <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><ChatSoporte negocio={negocio} /></div>
