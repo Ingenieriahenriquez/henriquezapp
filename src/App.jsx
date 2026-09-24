@@ -589,8 +589,53 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   );
 }
 
+function CambiarContrasenaPanel({ miEmail }) {
+  const [actual, setActual] = useState(false);
+  const [nueva, setNueva] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  async function cambiar() {
+    if (nueva.length < 6) { alert("La contraseña nueva debe tener al menos 6 caracteres."); return; }
+    if (nueva !== confirmar) { alert("Las dos contraseñas no coinciden."); return; }
+    setGuardando(true);
+    const { error } = await supabase.auth.updateUser({ password: nueva });
+    setGuardando(false);
+    if (error) { alert("No se pudo cambiar la contraseña: " + error.message); return; }
+    setNueva("");
+    setConfirmar("");
+    setActual(false);
+    alert("Listo — tu contraseña se actualizó correctamente.");
+  }
+
+  return (
+    <div className="hw-panel" style={{ padding: 20, maxWidth: 480, marginTop: 20 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Mi contraseña</div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
+        Cuenta: {miEmail}. Cambia aquí la contraseña con la que inicias sesión en el sistema.
+      </div>
+      {!actual ? (
+        <button className="hw-btn ghost" onClick={() => setActual(true)}>Cambiar contraseña</button>
+      ) : (
+        <>
+          <FieldRow label="Nueva contraseña">
+            <input className="hw-input" type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Confirmar nueva contraseña">
+            <input className="hw-input" type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} />
+          </FieldRow>
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button className="hw-btn" style={{ flex: 1, justifyContent: "center" }} disabled={guardando} onClick={cambiar}>{guardando ? "Guardando..." : "Guardar nueva contraseña"}</button>
+            <button className="hw-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => { setActual(false); setNueva(""); setConfirmar(""); }}>Cancelar</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Ajustes({
-  negocioConfig, setNegocioConfig, esAdmin,
+  negocioConfig, setNegocioConfig, esAdmin, miEmail,
   setClientes, setFacturas, setCotizaciones, setProductos, setCompras,
   setRecepciones, setOrdenes, setCajaSesiones, setCajaMovimientos, setAbonosPagos,
 }) {
@@ -666,6 +711,7 @@ function Ajustes({
           {actual.rnc && <div><b>RNC:</b> {actual.rnc}</div>}
           <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Solo un administrador puede editar estos datos.</div>
         </div>
+        <CambiarContrasenaPanel miEmail={miEmail} />
       </div>
     );
   }
@@ -707,6 +753,8 @@ function Ajustes({
         <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar cambios</button>
         {guardado && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Guardado — ya se actualizó en toda la app.</div>}
       </div>
+
+      <CambiarContrasenaPanel miEmail={miEmail} />
 
       <div className="hw-panel" style={{ padding: 20, maxWidth: 480, marginTop: 20, border: "1px solid var(--red)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "var(--red)", marginBottom: 6 }}>
@@ -819,6 +867,8 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [modo, setModo] = useState("login"); // "login" | "recuperar"
+  const [enviado, setEnviado] = useState(false);
 
   async function entrar(e) {
     e.preventDefault();
@@ -829,21 +879,98 @@ function Login() {
     if (error) setError("Correo o contraseña incorrectos.");
   }
 
+  async function enviarRecuperacion(e) {
+    e.preventDefault();
+    setError("");
+    setCargando(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setCargando(false);
+    if (error) { setError("No se pudo enviar el correo: " + error.message); return; }
+    setEnviado(true);
+  }
+
+  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 14px", fontSize: 14 };
+  const btnStyle = { width: "100%", marginTop: 14, padding: "11px 0", borderRadius: 10, border: "none", background: "#177A63", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" };
+  const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
+
+  if (modo === "recuperar") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
+        <form onSubmit={enviarRecuperacion} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Recuperar contraseña</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
+          {enviado ? (
+            <div style={{ color: "#8fe3c0", fontSize: 13.5, marginBottom: 4, lineHeight: 1.5 }}>
+              Listo — revisa el correo <b>{email}</b>. Te enviamos un enlace para crear una nueva contraseña (si no lo ves, revisa la carpeta de spam).
+            </div>
+          ) : (
+            <>
+              <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Correo</label>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+              {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+              <button type="submit" disabled={cargando} style={btnStyle}>{cargando ? "Enviando..." : "Enviar enlace de recuperación"}</button>
+            </>
+          )}
+          <button type="button" onClick={() => { setModo("login"); setError(""); setEnviado(false); }} style={linkStyle}>Volver a iniciar sesión</button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
       <form onSubmit={entrar} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Ingeniería y Tecnología Henríquez</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Inicia sesión para continuar</div>
         <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Correo</label>
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 14px", fontSize: 14 }} />
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
         <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Contraseña</label>
         <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+          style={{ ...inputStyle, margin: "6px 0 6px" }} />
+        {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+        <button type="submit" disabled={cargando} style={btnStyle}>
+          {cargando ? "Entrando..." : "Entrar"}
+        </button>
+        <button type="button" onClick={() => { setModo("recuperar"); setError(""); }} style={linkStyle}>¿Olvidaste tu contraseña?</button>
+      </form>
+    </div>
+  );
+}
+
+function RestablecerContrasena({ onListo }) {
+  const [pass, setPass] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(false);
+
+  async function guardar(e) {
+    e.preventDefault();
+    setError("");
+    if (pass.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    if (pass !== confirmar) { setError("Las contraseñas no coinciden."); return; }
+    setCargando(true);
+    const { error } = await supabase.auth.updateUser({ password: pass });
+    setCargando(false);
+    if (error) { setError("No se pudo actualizar: " + error.message); return; }
+    alert("Listo — tu contraseña se actualizó correctamente.");
+    onListo();
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg, #0c1420)", padding: 16 }}>
+      <form onSubmit={guardar} style={{ width: 340, maxWidth: "100%", background: "var(--panel, #121b29)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 28 }}>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 4 }}>Crear nueva contraseña</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>Escribe tu nueva contraseña para el sistema.</div>
+        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Nueva contraseña</label>
+        <input type="password" required value={pass} onChange={(e) => setPass(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 14px", fontSize: 14 }} />
+        <label style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Confirmar contraseña</label>
+        <input type="password" required value={confirmar} onChange={(e) => setConfirmar(e.target.value)}
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff", margin: "6px 0 6px", fontSize: 14 }} />
         {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
         <button type="submit" disabled={cargando}
           style={{ width: "100%", marginTop: 14, padding: "11px 0", borderRadius: 10, border: "none", background: "#177A63", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
-          {cargando ? "Entrando..." : "Entrar"}
+          {cargando ? "Guardando..." : "Guardar nueva contraseña"}
         </button>
       </form>
     </div>
@@ -1230,7 +1357,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
         <div style={{ display: tab === "ajustes" ? "block" : "none" }}>
           <Ajustes
-            negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin}
+            negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} miEmail={miEmail}
             setClientes={setClientes} setFacturas={setFacturas} setCotizaciones={setCotizaciones}
             setProductos={setProductos} setCompras={setCompras} setRecepciones={setRecepciones}
             setOrdenes={setOrdenes} setCajaSesiones={setCajaSesiones} setCajaMovimientos={setCajaMovimientos}
@@ -3107,14 +3234,16 @@ function Compras({ compras, setCompras, productos, setProductos }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [modoRecuperacion, setModoRecuperacion] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setCargando(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nuevaSesion) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nuevaSesion) => {
       setSession(nuevaSesion);
+      if (event === "PASSWORD_RECOVERY") setModoRecuperacion(true);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -3122,6 +3251,7 @@ export default function App() {
   if (cargando) {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.6)", background: "#0c1420" }}>Cargando...</div>;
   }
+  if (modoRecuperacion) return <RestablecerContrasena onListo={() => setModoRecuperacion(false)} />;
   if (!session) return <Login />;
   return <Panel session={session} />;
 }
