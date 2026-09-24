@@ -961,20 +961,31 @@ function Login() {
     minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
     background: "radial-gradient(circle at 30% 20%, #1B2A41 0%, #0c1420 55%, #070c14 100%)",
   };
+  const cardOuter = { position: "relative", width: 320, maxWidth: "100%" };
   const glassCard = {
-    position: "relative", width: 360, maxWidth: "100%", padding: "56px 26px 28px",
+    position: "relative", width: "100%", boxSizing: "border-box", padding: "64px 28px 36px", minHeight: 460,
+    display: "flex", flexDirection: "column",
     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: 18, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-    boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+    borderRadius: 24, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.25), 0 30px 70px -20px rgba(23,122,99,0.5), 0 55px 100px -35px rgba(0,0,0,0.6)",
   };
   const avatar = {
-    position: "absolute", top: -34, left: "50%", transform: "translateX(-50%)",
-    width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.12)",
+    position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)",
+    width: 72, height: 72, borderRadius: "50%", background: "rgba(255,255,255,0.12)",
     border: "1px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
   };
-  const fieldWrap = { position: "relative", margin: "0 0 14px" };
+  const fieldWrap = { position: "relative", margin: "0 0 16px" };
   const fieldIcon = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.65, pointerEvents: "none" };
+  const loginStyles = `
+    @keyframes hwLoginFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    @keyframes hwLoginGlow { 0%, 100% { opacity: .5; transform: translateX(-50%) scale(1); } 50% { opacity: .85; transform: translateX(-50%) scale(1.06); } }
+    .hw-login-card { animation: hwLoginFloat 6s ease-in-out infinite; }
+    .hw-login-glow { animation: hwLoginGlow 5s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .hw-login-card, .hw-login-glow { animation: none !important; }
+    }
+  `;
   const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 12px 11px 38px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 14 };
   const btnStyle = { width: "100%", marginTop: 4, padding: "12px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #177A63, #0F5C49)", color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", boxShadow: "0 6px 16px rgba(23,122,99,0.4)" };
   const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.65)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
@@ -982,7 +993,10 @@ function Login() {
   if (modo === "recuperar") {
     return (
       <div style={pageStyle}>
-        <form onSubmit={enviarRecuperacion} style={glassCard}>
+        <style>{loginStyles}</style>
+        <div style={cardOuter}>
+          <div className="hw-login-glow" style={{ position: "absolute", left: "50%", bottom: -18, width: "78%", height: 40, background: "#177A63", filter: "blur(28px)", borderRadius: "50%", opacity: 0.6 }} />
+          <form className="hw-login-card" onSubmit={enviarRecuperacion} style={glassCard}>
           <div style={avatar}><Mail size={28} color="#fff" /></div>
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: "#fff", marginBottom: 4, textAlign: "center" }}>Recuperar contraseña</div>
           <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginBottom: 20, textAlign: "center" }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
@@ -1001,14 +1015,21 @@ function Login() {
             </>
           )}
           <button type="button" onClick={() => { setModo("login"); setError(""); setEnviado(false); }} style={linkStyle}>Volver a iniciar sesión</button>
-        </form>
+          </form>
+          <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
+            Henriquez Systems · © {new Date().getFullYear()} Ing. Henríquez
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div style={pageStyle}>
-      <form onSubmit={entrar} style={glassCard}>
+      <style>{loginStyles}</style>
+      <div style={cardOuter}>
+        <div className="hw-login-glow" style={{ position: "absolute", left: "50%", bottom: -18, width: "78%", height: 40, background: "#177A63", filter: "blur(28px)", borderRadius: "50%", opacity: 0.6 }} />
+        <form className="hw-login-card" onSubmit={entrar} style={glassCard}>
         <div style={avatar}><User size={30} color="#fff" /></div>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, color: "#fff", marginBottom: 3, textAlign: "center" }}>Ingeniería y Tecnología Henríquez</div>
         <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginBottom: 22, textAlign: "center" }}>Inicia sesión para continuar</div>
@@ -1038,7 +1059,11 @@ function Login() {
           {cargando ? "Entrando..." : "Entrar"}
         </button>
         <button type="button" onClick={() => { setModo("recuperar"); setError(""); }} style={linkStyle}>¿Olvidaste tu contraseña?</button>
-      </form>
+        </form>
+        <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
+          Henriquez Systems · © {new Date().getFullYear()} Ing. Henríquez
+        </div>
+      </div>
     </div>
   );
 }
@@ -1430,6 +1455,7 @@ function Panel({ session }) {
           {negocio.direccion}<br />
           {negocio.telefono}<br />
           <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 8, background: "none", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 7, padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>Cerrar sesión</button>
+          <div style={{ marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Henriquez Systems · © {new Date().getFullYear()} Ing. Henríquez</div>
         </div>
       </aside>
 
