@@ -961,62 +961,63 @@ function Login() {
     minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
     background: "radial-gradient(circle at 30% 20%, #1B2A41 0%, #0c1420 55%, #070c14 100%)",
   };
-  const cardOuter = { position: "relative", width: 320, maxWidth: "100%" };
+  const cardOuter = { position: "relative", width: 460, maxWidth: "100%" };
   const glassCard = {
-    position: "relative", width: "100%", boxSizing: "border-box", padding: "64px 28px 36px", minHeight: 460,
+    position: "relative", width: "100%", boxSizing: "border-box", padding: "84px 44px 48px", minHeight: 600,
     display: "flex", flexDirection: "column",
     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: 24, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.25), 0 30px 70px -20px rgba(23,122,99,0.5), 0 55px 100px -35px rgba(0,0,0,0.6)",
+    borderRadius: 30, backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.25), 0 40px 90px -20px rgba(23,122,99,0.55), 0 70px 130px -35px rgba(0,0,0,0.65)",
   };
   const avatar = {
-    position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)",
-    width: 72, height: 72, borderRadius: "50%", background: "rgba(255,255,255,0.12)",
+    position: "absolute", top: -46, left: "50%", transform: "translateX(-50%)",
+    width: 92, height: 92, borderRadius: "50%", background: "rgba(255,255,255,0.12)",
     border: "1px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.4)",
   };
-  const fieldWrap = { position: "relative", margin: "0 0 16px" };
-  const fieldIcon = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.65, pointerEvents: "none" };
+  const fieldWrap = { position: "relative", margin: "0 0 20px" };
+  const fieldIcon = { position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", opacity: 0.65, pointerEvents: "none" };
   const loginStyles = `
-    @keyframes hwLoginFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    @keyframes hwLoginGlow { 0%, 100% { opacity: .5; transform: translateX(-50%) scale(1); } 50% { opacity: .85; transform: translateX(-50%) scale(1.06); } }
-    .hw-login-card { animation: hwLoginFloat 6s ease-in-out infinite; }
+    @keyframes hwLoginFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+    @keyframes hwLoginGlow { 0%, 100% { opacity: .5; transform: translateX(-50%) scale(1); } 50% { opacity: .9; transform: translateX(-50%) scale(1.1); } }
+    .hw-login-card { animation: hwLoginFloat 5s ease-in-out infinite; }
     .hw-login-glow { animation: hwLoginGlow 5s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) {
       .hw-login-card, .hw-login-glow { animation: none !important; }
     }
   `;
-  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 12px 11px 38px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 14 };
-  const btnStyle = { width: "100%", marginTop: 4, padding: "12px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #177A63, #0F5C49)", color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", boxShadow: "0 6px 16px rgba(23,122,99,0.4)" };
-  const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.65)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
+  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "14px 14px 14px 44px", borderRadius: 11, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 15.5 };
+  const btnStyle = { width: "100%", marginTop: 8, padding: "16px 0", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #177A63, #0F5C49)", color: "#fff", fontWeight: 700, fontSize: 16, cursor: "pointer", boxShadow: "0 8px 20px rgba(23,122,99,0.45)" };
+  const linkStyle = { display: "block", width: "100%", textAlign: "center", marginTop: 20, background: "none", border: "none", color: "rgba(255,255,255,0.65)", fontSize: 13.5, cursor: "pointer", textDecoration: "underline" };
+  const glow = { position: "absolute", left: "50%", bottom: -26, width: "80%", height: 60, background: "#177A63", filter: "blur(40px)", borderRadius: "50%", opacity: 0.6 };
 
   if (modo === "recuperar") {
     return (
       <div style={pageStyle}>
         <style>{loginStyles}</style>
         <div style={cardOuter}>
-          <div className="hw-login-glow" style={{ position: "absolute", left: "50%", bottom: -18, width: "78%", height: 40, background: "#177A63", filter: "blur(28px)", borderRadius: "50%", opacity: 0.6 }} />
+          <div className="hw-login-glow" style={glow} />
           <form className="hw-login-card" onSubmit={enviarRecuperacion} style={glassCard}>
-          <div style={avatar}><Mail size={28} color="#fff" /></div>
-          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: "#fff", marginBottom: 4, textAlign: "center" }}>Recuperar contraseña</div>
-          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginBottom: 20, textAlign: "center" }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
+          <div style={avatar}><Mail size={36} color="#fff" /></div>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 25, color: "#fff", marginBottom: 6, textAlign: "center" }}>Recuperar contraseña</div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", marginBottom: 28, textAlign: "center", lineHeight: 1.5 }}>Escribe el correo con el que inicias sesión y te enviaremos un enlace para crear una nueva contraseña.</div>
           {enviado ? (
-            <div style={{ color: "#8fe3c0", fontSize: 13.5, marginBottom: 4, lineHeight: 1.5, textAlign: "center" }}>
+            <div style={{ color: "#8fe3c0", fontSize: 14.5, marginBottom: 4, lineHeight: 1.6, textAlign: "center" }}>
               Listo — revisa el correo <b>{email}</b>. Te enviamos un enlace para crear una nueva contraseña (si no lo ves, revisa la carpeta de spam).
             </div>
           ) : (
             <>
               <div style={fieldWrap}>
-                <Mail size={16} style={fieldIcon} color="#fff" />
+                <Mail size={18} style={fieldIcon} color="#fff" />
                 <input type="email" required placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
               </div>
-              {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginBottom: 10, textAlign: "center" }}>{error}</div>}
+              {error && <div style={{ color: "#ff8080", fontSize: 13, marginBottom: 10, textAlign: "center" }}>{error}</div>}
               <button type="submit" disabled={cargando} style={btnStyle}>{cargando ? "Enviando..." : "Enviar enlace de recuperación"}</button>
             </>
           )}
           <button type="button" onClick={() => { setModo("login"); setError(""); setEnviado(false); }} style={linkStyle}>Volver a iniciar sesión</button>
           </form>
-          <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
+          <div style={{ marginTop: 24, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
             Henriquez Systems · © {new Date().getFullYear()} Ing. Henríquez
           </div>
         </div>
@@ -1028,39 +1029,39 @@ function Login() {
     <div style={pageStyle}>
       <style>{loginStyles}</style>
       <div style={cardOuter}>
-        <div className="hw-login-glow" style={{ position: "absolute", left: "50%", bottom: -18, width: "78%", height: 40, background: "#177A63", filter: "blur(28px)", borderRadius: "50%", opacity: 0.6 }} />
+        <div className="hw-login-glow" style={glow} />
         <form className="hw-login-card" onSubmit={entrar} style={glassCard}>
-        <div style={avatar}><User size={30} color="#fff" /></div>
-        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, color: "#fff", marginBottom: 3, textAlign: "center" }}>Ingeniería y Tecnología Henríquez</div>
-        <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginBottom: 22, textAlign: "center" }}>Inicia sesión para continuar</div>
+        <div style={avatar}><User size={40} color="#fff" /></div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 23, color: "#fff", marginBottom: 6, textAlign: "center", lineHeight: 1.25 }}>Ingeniería y Tecnología Henríquez</div>
+        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginBottom: 32, textAlign: "center" }}>Inicia sesión para continuar</div>
 
         <div style={fieldWrap}>
-          <User size={16} style={fieldIcon} color="#fff" />
+          <User size={18} style={fieldIcon} color="#fff" />
           <input type="email" required placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
         </div>
         <div style={fieldWrap}>
-          <Lock size={16} style={fieldIcon} color="#fff" />
+          <Lock size={18} style={fieldIcon} color="#fff" />
           <input type={verPassword ? "text" : "password"} required placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)}
-            style={{ ...inputStyle, paddingRight: 38 }} />
+            style={{ ...inputStyle, paddingRight: 44 }} />
           <button type="button" onClick={() => setVerPassword((v) => !v)}
-            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 0, cursor: "pointer", opacity: 0.65, display: "flex" }}
+            style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 0, cursor: "pointer", opacity: 0.65, display: "flex" }}
             aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>
-            {verPassword ? <EyeOff size={16} color="#fff" /> : <Eye size={16} color="#fff" />}
+            {verPassword ? <EyeOff size={18} color="#fff" /> : <Eye size={18} color="#fff" />}
           </button>
         </div>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "rgba(255,255,255,0.75)", marginBottom: 6, cursor: "pointer" }}>
-          <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} style={{ width: 14, height: 14 }} />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "rgba(255,255,255,0.75)", marginBottom: 8, cursor: "pointer" }}>
+          <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} style={{ width: 15, height: 15 }} />
           Recordar mi correo
         </label>
 
-        {error && <div style={{ color: "#ff8080", fontSize: 12.5, marginTop: 6, marginBottom: 6, textAlign: "center" }}>{error}</div>}
+        {error && <div style={{ color: "#ff8080", fontSize: 13, marginTop: 8, marginBottom: 8, textAlign: "center" }}>{error}</div>}
         <button type="submit" disabled={cargando} style={btnStyle}>
           {cargando ? "Entrando..." : "Entrar"}
         </button>
         <button type="button" onClick={() => { setModo("recuperar"); setError(""); }} style={linkStyle}>¿Olvidaste tu contraseña?</button>
         </form>
-        <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
+        <div style={{ marginTop: 24, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
           Henriquez Systems · © {new Date().getFullYear()} Ing. Henríquez
         </div>
       </div>
