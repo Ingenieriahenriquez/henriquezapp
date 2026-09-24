@@ -1293,9 +1293,12 @@ function Panel({ session }) {
           .hw-suggest-item{padding:12px 14px;font-size:14.5px;}
         }
         @media print {
-          body > *:not(#hw-print-target) { display: none !important; }
+          body > *:not(#hw-print-target):not(#hw-label-print-target) { display: none !important; }
           #hw-print-target { position: static !important; left: auto !important; display: block !important; }
+          #hw-label-print-target { position: static !important; left: auto !important; display: block !important; }
         }
+        #hw-label-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
+        .hw-etiqueta-print-item{width:2in;box-sizing:border-box;padding:8px;page-break-after:always;break-after:page;}
       `}</style>
 
       <div className="hw-mobile-topbar">
@@ -1952,6 +1955,13 @@ async function compartirComoPDF(nodo, nombreArchivo, formato, titulo, pdfPreGene
 
 function EtiquetaPreview({ producto, onClose }) {
   const barcodeRef = useRef(null);
+  const portalRef = useRef(null);
+  const [cantidad, setCantidad] = useState(1);
+
+  useEffect(() => {
+    setCantidad(1);
+  }, [producto]);
+
   useEffect(() => {
     if (barcodeRef.current && producto?.codigo) {
       try {
@@ -1959,6 +1969,18 @@ function EtiquetaPreview({ producto, onClose }) {
       } catch (e) { console.error("No se pudo generar el código de barras de la etiqueta:", e); }
     }
   }, [producto]);
+
+  const n = Math.max(1, Math.min(200, Number(cantidad) || 1));
+
+  useEffect(() => {
+    if (!producto?.codigo || !portalRef.current) return;
+    const svgs = portalRef.current.querySelectorAll("svg.hw-etiqueta-barcode-print");
+    svgs.forEach((svg) => {
+      try {
+        JsBarcode(svg, producto.codigo, { format: "CODE128", width: 1.3, height: 30, displayValue: true, fontSize: 9, margin: 2 });
+      } catch (e) { console.error("No se pudo generar el código de barras de la etiqueta:", e); }
+    });
+  }, [producto, n]);
 
   if (!producto) return null;
   return (
@@ -1973,10 +1995,27 @@ function EtiquetaPreview({ producto, onClose }) {
               <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, wordBreak: "break-word" }}>{producto.nombre}</div>
               <svg ref={barcodeRef}></svg>
             </div>
-            <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={triggerPrintLabel}><Printer size={15} /> Imprimir etiqueta</button>
+            <FieldRow label="Cantidad de etiquetas a imprimir">
+              <input className="hw-input" type="number" min={1} max={200} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+            </FieldRow>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={triggerPrintLabel}>
+              <Printer size={15} /> Imprimir {n > 1 ? `${n} etiquetas` : "etiqueta"}
+            </button>
             <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
               En el diálogo de impresión, elige tu impresora Zebra. El tamaño ya está ajustado para etiqueta pequeña (2 x 1 pulgadas) — puedes cambiarlo ahí mismo si tu etiqueta es de otro tamaño.
             </div>
+
+            {createPortal(
+              <div id="hw-label-print-target" ref={portalRef}>
+                {Array.from({ length: n }).map((_, i) => (
+                  <div key={i} className="hw-etiqueta-print-item">
+                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, wordBreak: "break-word", textAlign: "center" }}>{producto.nombre}</div>
+                    <div style={{ textAlign: "center" }}><svg className="hw-etiqueta-barcode-print"></svg></div>
+                  </div>
+                ))}
+              </div>,
+              document.body
+            )}
           </>
         )}
       </div>
