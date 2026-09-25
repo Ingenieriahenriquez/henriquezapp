@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
@@ -1438,6 +1438,27 @@ function Panel({ session }) {
           <div className="hw-mobile-topbar-name">{negocio.nombre}</div>
           <div className="hw-mobile-topbar-sub">{negocio.eslogan || "Sistema de facturación"}</div>
         </div>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            color: "#fff",
+            borderRadius: 8,
+            padding: "7px 10px",
+            fontSize: 11.5,
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          <LogOut size={15} />
+          Salir
+        </button>
       </div>
 
       <aside className="hw-sidebar">
