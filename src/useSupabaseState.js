@@ -21,6 +21,13 @@ const CAMEL_TO_SNAKE = {
   facturaId: "factura_id",
   creadoEn: "creado_en",
   facturaSuplidor: "factura_suplidor",
+  cuentaId: "cuenta_id",
+  saldoInicial: "saldo_inicial",
+  esPredeterminada: "es_predeterminada",
+  cuentaDestinoId: "cuenta_destino_id",
+  esAutomatico: "es_automatico",
+  ultimos4: "ultimos4",
+  plantillaId: "plantilla_id",
 };
 const SNAKE_TO_CAMEL = Object.fromEntries(
   Object.entries(CAMEL_TO_SNAKE).map(([camel, snake]) => [snake, camel])
