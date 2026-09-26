@@ -2494,7 +2494,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
   const [clienteId, setClienteId] = useState("");
-  const [metodo, setMetodo] = useState("Efectivo");
+  const [metodo, setMetodo] = useState("Transferencia");
   const [estadoPago, setEstadoPago] = useState("Pagada");
   const [aplicaItbis, setAplicaItbis] = useState(true);
   const [tipoComprobante, setTipoComprobante] = useState("Consumidor Final");
@@ -2505,7 +2505,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   function abrirNueva() {
     setEditingId(null);
     setClienteId("");
-    setMetodo("Efectivo");
+    setMetodo("Transferencia");
     setEstadoPago("Pagada");
     setAplicaItbis(true);
     setTipoComprobante("Consumidor Final");
