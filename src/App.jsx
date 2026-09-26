@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { supabase } from "./supabaseClient";
@@ -127,6 +127,7 @@ const NAV = [
   { id: "abonos", label: "Abonos", icon: Coins },
   { id: "graficas", label: "Gráficas", icon: LineChart },
   { id: "caja", label: "Caja", icon: Banknote },
+  { id: "bancos", label: "Bancos", icon: Landmark },
   { id: "ajustes", label: "Ajustes", icon: Settings },
   { id: "chatsoporte", label: "Chat soporte", icon: Headphones },
 ];
@@ -589,7 +590,7 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   );
 }
 
-function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos }) {
+function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos, cuentasBancarias, movimientosBancarios }) {
   const [descargando, setDescargando] = useState(false);
 
   function descargarRespaldo() {
@@ -602,6 +603,7 @@ function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, produc
         negocio: negocioConfig[0] || null,
         clientes, facturas, cotizaciones, productos, compras,
         recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos,
+        cuentasBancarias, movimientosBancarios,
       };
       const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -690,6 +692,7 @@ function Ajustes({
   setRecepciones, setOrdenes, setCajaSesiones, setCajaMovimientos, setAbonosPagos,
   clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes,
   permisos, cajaSesiones, cajaMovimientos, abonosPagos,
+  cuentasBancarias, movimientosBancarios,
 }) {
   const actual = negocioConfig[0] || BUSINESS;
   const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "" });
@@ -810,6 +813,7 @@ function Ajustes({
         negocioConfig={negocioConfig} clientes={clientes} facturas={facturas} cotizaciones={cotizaciones}
         productos={productos} compras={compras} recepciones={recepciones} ordenes={ordenes}
         permisos={permisos} cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
+        cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios}
       />
 
       <CambiarContrasenaPanel miEmail={miEmail} />
@@ -1123,6 +1127,8 @@ function Panel({ session }) {
   const [negocioConfig, setNegocioConfig] = useSupabaseState("negocio_config");
   const [abonosPagos, setAbonosPagos] = useSupabaseState("abonos_pagos");
   const [compras, setCompras] = useSupabaseState("compras");
+  const [cuentasBancarias, setCuentasBancarias] = useSupabaseState("cuentas_bancarias");
+  const [movimientosBancarios, setMovimientosBancarios] = useSupabaseState("movimientos_bancarios");
   const negocio = negocioConfig[0] || BUSINESS;
 
   const miEmail = session?.user?.email || "";
@@ -1489,7 +1495,8 @@ function Panel({ session }) {
           <Clientes clientes={clientes} setClientes={setClientes} facturas={facturas} />
         </div>
         <div style={{ display: tab === "facturacion" ? "block" : "none" }}>
-          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} miEmail={miEmail} />
+          <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} miEmail={miEmail}
+            cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
         <div style={{ display: tab === "cotizaciones" ? "block" : "none" }}>
           <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} negocio={negocio} miEmail={miEmail} />
@@ -1512,6 +1519,7 @@ function Panel({ session }) {
         <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Graficas facturas={facturas} cotizaciones={cotizaciones} productos={productos} /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
+        <div style={{ display: tab === "bancos" ? "block" : "none" }}><Bancos cuentas={cuentasBancarias} setCuentas={setCuentasBancarias} movimientos={movimientosBancarios} setMovimientos={setMovimientosBancarios} /></div>
         <div style={{ display: tab === "ajustes" ? "block" : "none" }}>
           <Ajustes
             negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} miEmail={miEmail}
@@ -1522,6 +1530,7 @@ function Panel({ session }) {
             clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos}
             compras={compras} recepciones={recepciones} ordenes={ordenes} permisos={permisos}
             cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
+            cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios}
           />
         </div>
         <div style={{ display: tab === "chatsoporte" ? "block" : "none" }}><ChatSoporte negocio={negocio} /></div>
@@ -1558,6 +1567,7 @@ const TILES = [
   { id: "abonos", label: "Abonos", icon: Coins, from: "#C9A227", to: "#96790E" },
   { id: "graficas", label: "Gráficas", icon: LineChart, from: "#2FA6A6", to: "#1E7A7A" },
   { id: "caja", label: "Caja", icon: Banknote, from: "#2F9E67", to: "#1E7449" },
+  { id: "bancos", label: "Bancos", icon: Landmark, from: "#3F6FD1", to: "#2A4E96" },
   { id: "ajustes", label: "Ajustes", icon: Settings, from: "#7A7F87", to: "#565A61" },
   { id: "chatsoporte", label: "Chat\nsoporte", icon: Headphones, from: "#D1497A", to: "#A5325C" },
 ];
@@ -2478,7 +2488,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   );
 }
 
-function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail }) {
+function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -2534,6 +2544,18 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
+      // Si se paga por transferencia y ya está pagada, se abona sola a la cuenta
+      // bancaria marcada como predeterminada — así no hay que registrarlo dos veces.
+      if (metodo === "Transferencia" && estadoPago === "Pagada" && setMovimientosBancarios) {
+        const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada);
+        if (cuentaPred) {
+          const totalFactura = calcTotal(nueva.items, nueva.aplicaItbis).total;
+          setMovimientosBancarios([...movimientosBancarios, {
+            id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de factura (transferencia)", monto: totalFactura,
+            descripcion: `Factura ${nueva.ncf} · ${nueva.clienteNombre}`, fechaHora: new Date().toISOString(), facturaId: nueva.id,
+          }]);
+        }
+      }
     }
     setOpen(false);
     setEditingId(null);
@@ -3132,6 +3154,198 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
               <input className="hw-input" type="number" autoFocus value={montoContado} onChange={(e) => setMontoContado(e.target.value)} />
             </FieldRow>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={cerrarCaja}>Confirmar cierre</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TIPOS_MOV_BANCO_ENTRADA = ["Depósito", "Transferencia recibida", "Pago de factura (transferencia)"];
+
+function saldoDeCuenta(cuenta, movimientos) {
+  const movs = movimientos.filter((m) => m.cuentaId === cuenta.id);
+  const entradas = movs.filter((m) => TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo)).reduce((s, m) => s + Number(m.monto), 0);
+  const salidas = movs.filter((m) => !TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo)).reduce((s, m) => s + Number(m.monto), 0);
+  return Number(cuenta.saldoInicial || 0) + entradas - salidas;
+}
+
+function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
+  const [openCuenta, setOpenCuenta] = useState(false);
+  const [form, setForm] = useState({ nombre: "", tipo: "Corriente", banco: "Banreservas", saldoInicial: 0, esPredeterminada: false });
+  const [cuentaSel, setCuentaSel] = useState(null);
+  const [movTipo, setMovTipo] = useState("Depósito");
+  const [movMonto, setMovMonto] = useState("");
+  const [movDesc, setMovDesc] = useState("");
+  const [movDestinoId, setMovDestinoId] = useState("");
+
+  const activa = cuentas.find((c) => c.id === cuentaSel) || cuentas[0] || null;
+
+  function abrirNuevaCuenta() {
+    setForm({ nombre: "", tipo: "Corriente", banco: "Banreservas", saldoInicial: 0, esPredeterminada: cuentas.length === 0 });
+    setOpenCuenta(true);
+  }
+
+  function guardarCuenta() {
+    if (!form.nombre.trim()) { alert("Ponle un nombre o apodo a la cuenta (ej. Corriente principal)."); return; }
+    const nueva = { id: uid(), nombre: form.nombre.trim(), tipo: form.tipo, banco: form.banco.trim() || "Banreservas", saldoInicial: Number(form.saldoInicial) || 0, esPredeterminada: !!form.esPredeterminada, creadoEn: new Date().toISOString() };
+    let listaFinal = [...cuentas, nueva];
+    if (nueva.esPredeterminada) {
+      listaFinal = listaFinal.map((c) => (c.id === nueva.id ? c : { ...c, esPredeterminada: false }));
+    }
+    setCuentas(listaFinal);
+    setCuentaSel(nueva.id);
+    setOpenCuenta(false);
+  }
+
+  function marcarPredeterminada(id) {
+    setCuentas(cuentas.map((c) => ({ ...c, esPredeterminada: c.id === id })));
+  }
+
+  function eliminarCuenta(id) {
+    if (!confirm("¿Eliminar esta cuenta? Se perderá su historial de movimientos.")) return;
+    setCuentas(cuentas.filter((c) => c.id !== id));
+    setMovimientos(movimientos.filter((m) => m.cuentaId !== id));
+    if (cuentaSel === id) setCuentaSel(null);
+  }
+
+  function registrarMovimiento() {
+    if (!activa || !movMonto || Number(movMonto) <= 0) return;
+    const monto = Number(movMonto);
+    const ahora = new Date().toISOString();
+    if (movTipo === "Transferencia a otra cuenta") {
+      if (!movDestinoId || movDestinoId === activa.id) { alert("Selecciona la cuenta destino."); return; }
+      setMovimientos([
+        ...movimientos,
+        { id: uid(), cuentaId: activa.id, tipo: "Transferencia enviada", monto, descripcion: movDesc || `Transferencia a ${cuentas.find((c) => c.id === movDestinoId)?.nombre || ""}`, fechaHora: ahora, cuentaDestinoId: movDestinoId },
+        { id: uid(), cuentaId: movDestinoId, tipo: "Transferencia recibida", monto, descripcion: movDesc || `Transferencia desde ${activa.nombre}`, fechaHora: ahora, cuentaDestinoId: activa.id },
+      ]);
+    } else {
+      setMovimientos([...movimientos, { id: uid(), cuentaId: activa.id, tipo: movTipo, monto, descripcion: movDesc, fechaHora: ahora }]);
+    }
+    setMovMonto("");
+    setMovDesc("");
+    setMovDestinoId("");
+  }
+
+  const movActiva = activa ? movimientos.filter((m) => m.cuentaId === activa.id).slice().reverse() : [];
+  const totalBancos = cuentas.reduce((s, c) => s + saldoDeCuenta(c, movimientos), 0);
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Bancos</div><div className="hw-sub">Cuentas bancarias, depósitos, retiros y transferencias</div></div>
+        <button className="hw-btn" onClick={abrirNuevaCuenta}><Plus size={15} /> Nueva cuenta</button>
+      </div>
+
+      <div className="hw-grid" style={{ marginBottom: 16 }}>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--blue-soft)" }}><Landmark size={17} color="var(--blue)" /></div></div>
+          <div className="hw-kpi-label">Total en todas las cuentas</div>
+          <div className="hw-kpi-value" style={{ color: "var(--blue)" }}>{money(totalBancos)}</div>
+        </div>
+      </div>
+
+      {cuentas.length === 0 ? (
+        <div className="hw-panel" style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>
+          Todavía no ha agregado ninguna cuenta bancaria. Haga clic en "Nueva cuenta" para empezar.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            {cuentas.map((c) => (
+              <div key={c.id} onClick={() => setCuentaSel(c.id)}
+                className="hw-card" style={{ cursor: "pointer", minWidth: 220, flex: "1 1 220px", borderColor: activa?.id === c.id ? "var(--blue)" : undefined, boxShadow: activa?.id === c.id ? "0 0 0 2px var(--blue-soft)" : undefined }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14.5 }}>{c.nombre}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{c.banco} · {c.tipo}</div>
+                  </div>
+                  {c.esPredeterminada && <span className="hw-badge blue">Predeterminada</span>}
+                </div>
+                <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                  {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
+                  <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: -8, marginBottom: 16 }}>
+            La cuenta marcada como "Predeterminada" es donde se suma automáticamente el dinero de las facturas pagadas por transferencia.
+          </div>
+
+          {activa && (
+            <>
+              <div className="hw-panel" style={{ padding: 16, marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 10 }}>Registrar movimiento en "{activa.nombre}"</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <select className="hw-select" value={movTipo} onChange={(e) => setMovTipo(e.target.value)} style={{ maxWidth: 220 }}>
+                    <option>Depósito</option>
+                    <option>Retiro</option>
+                    <option>Transferencia a otra cuenta</option>
+                  </select>
+                  {movTipo === "Transferencia a otra cuenta" && (
+                    <select className="hw-select" value={movDestinoId} onChange={(e) => setMovDestinoId(e.target.value)} style={{ maxWidth: 200 }}>
+                      <option value="">Cuenta destino...</option>
+                      {cuentas.filter((c) => c.id !== activa.id).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  )}
+                  <input className="hw-input" type="number" placeholder="Monto" value={movMonto} onChange={(e) => setMovMonto(e.target.value)} style={{ maxWidth: 130 }} />
+                  <input className="hw-input" placeholder="Descripción (opcional)" value={movDesc} onChange={(e) => setMovDesc(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
+                  <button className="hw-btn" onClick={registrarMovimiento}><Plus size={14} /> Agregar</button>
+                </div>
+              </div>
+
+              <div className="hw-panel">
+                <div style={{ padding: "14px 16px", fontWeight: 600 }}>Movimientos de "{activa.nombre}"</div>
+                <table className="hw-table hw-t-bancomov">
+                  <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Descripción</th></tr></thead>
+                  <tbody>
+                    {movActiva.map((m) => (
+                      <tr key={m.id}>
+                        <td>{new Date(m.fechaHora).toLocaleString("es-DO", { dateStyle: "short", timeStyle: "short" })}</td>
+                        <td>{m.tipo}{m.facturaId ? " (automático)" : ""}</td>
+                        <td style={{ color: TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo) ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
+                          {TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo) ? "+" : "−"}{money(m.monto)}
+                        </td>
+                        <td>{m.descripcion}</td>
+                      </tr>
+                    ))}
+                    {movActiva.length === 0 && <tr><td colSpan={4} className="hw-empty">Sin movimientos todavía en esta cuenta</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {openCuenta && (
+        <div className="hw-modal-overlay" onClick={() => setOpenCuenta(false)}>
+          <div className="hw-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">Nueva cuenta bancaria</div><button className="hw-close" onClick={() => setOpenCuenta(false)}><X size={18} /></button></div>
+            <FieldRow label="Nombre o apodo (ej. Corriente principal)">
+              <input className="hw-input" autoFocus value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+            </FieldRow>
+            <FieldRow label="Tipo de cuenta">
+              <select className="hw-select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                <option>Corriente</option>
+                <option>Ahorros</option>
+              </select>
+            </FieldRow>
+            <FieldRow label="Banco">
+              <input className="hw-input" value={form.banco} onChange={(e) => setForm({ ...form, banco: e.target.value })} />
+            </FieldRow>
+            <FieldRow label="Saldo actual (con el que empieza en el sistema)">
+              <input className="hw-input" type="number" value={form.saldoInicial} onChange={(e) => setForm({ ...form, saldoInicial: e.target.value })} />
+            </FieldRow>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted)", marginBottom: 14, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.esPredeterminada} onChange={(e) => setForm({ ...form, esPredeterminada: e.target.checked })} />
+              Usar esta cuenta para recibir automáticamente los pagos por transferencia
+            </label>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={guardarCuenta}>Guardar cuenta</button>
           </div>
         </div>
       )}
