@@ -3262,23 +3262,25 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
               const plantilla = TARJETAS_BANCO.find((t) => t.id === c.plantillaId);
               return (
                 <div key={c.id} onClick={() => setCuentaSel(c.id)}
-                  className="hw-card" style={{ cursor: "pointer", minWidth: 240, flex: "1 1 240px", overflow: "hidden", padding: 0, borderColor: activa?.id === c.id ? "var(--blue)" : undefined, boxShadow: activa?.id === c.id ? "0 0 0 2px var(--blue-soft)" : undefined }}>
-                  {plantilla && (
-                    <div style={{ height: 70, backgroundImage: `url(${plantilla.imagen})`, backgroundSize: "cover", backgroundPosition: "center 30%" }} />
-                  )}
-                  <div style={{ padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14.5 }}>{c.nombre}</div>
+                  className="hw-card" style={{ cursor: "pointer", minWidth: 240, flex: "1 1 240px", borderColor: activa?.id === c.id ? "var(--blue)" : undefined, boxShadow: activa?.id === c.id ? "0 0 0 2px var(--blue-soft)" : undefined }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
+                      {plantilla && (
+                        <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 3px rgba(16,24,39,0.25)" }}>
+                          <div style={{ width: "100%", height: "100%", backgroundImage: `url(${plantilla.imagen})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                        </div>
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.nombre}</div>
                         <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{c.banco} · {c.tipo}{c.ultimos4 ? ` · ····${c.ultimos4}` : ""}</div>
                       </div>
-                      {c.esPredeterminada && <span className="hw-badge blue">Predeterminada</span>}
                     </div>
-                    <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                      {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
-                      <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
-                    </div>
+                    {c.esPredeterminada && <span className="hw-badge blue" style={{ flexShrink: 0 }}>Predeterminada</span>}
+                  </div>
+                  <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
+                    <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
                   </div>
                 </div>
               );
@@ -3344,14 +3346,17 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
             <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, marginBottom: 14 }}>
               {TARJETAS_BANCO.map((t) => (
                 <div key={t.id} onClick={() => elegirPlantilla(t)}
-                  style={{ flex: "0 0 auto", width: 118, cursor: "pointer", borderRadius: 10, overflow: "hidden", border: form.plantillaId === t.id ? "2px solid var(--blue)" : "2px solid transparent", boxShadow: form.plantillaId === t.id ? "0 0 0 2px var(--blue-soft)" : "0 1px 3px rgba(16,24,39,0.15)" }}>
-                  <div style={{ height: 74, backgroundImage: `url(${t.imagen})`, backgroundSize: "cover", backgroundPosition: "center 30%" }} />
-                  <div style={{ fontSize: 10, padding: "4px 6px", color: "var(--muted)", lineHeight: 1.3 }}>{t.etiqueta}{t.ultimos4 ? ` ····${t.ultimos4}` : ""}</div>
+                  style={{ flex: "0 0 auto", width: 88, cursor: "pointer" }}>
+                  <div style={{ width: 88, height: 88, borderRadius: 10, overflow: "hidden", border: form.plantillaId === t.id ? "2px solid var(--blue)" : "2px solid transparent", boxShadow: form.plantillaId === t.id ? "0 0 0 2px var(--blue-soft)" : "0 1px 3px rgba(16,24,39,0.15)" }}>
+                    <div style={{ width: "100%", height: "100%", backgroundImage: `url(${t.imagen})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                  </div>
+                  <div style={{ fontSize: 10, padding: "4px 2px 0", color: "var(--muted)", lineHeight: 1.3, textAlign: "center" }}>{t.etiqueta}{t.ultimos4 ? ` ····${t.ultimos4}` : ""}</div>
                 </div>
               ))}
-              <div key="otra" onClick={() => setForm({ ...form, plantillaId: "" })}
-                style={{ flex: "0 0 auto", width: 118, height: 74, cursor: "pointer", borderRadius: 10, border: form.plantillaId === "" ? "2px solid var(--blue)" : "1px dashed var(--line)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 11, color: "var(--muted)", padding: 6 }}>
-                Otra tarjeta / banco
+              <div key="otra" onClick={() => setForm({ ...form, plantillaId: "" })} style={{ flex: "0 0 auto", width: 88 }}>
+                <div style={{ width: 88, height: 88, cursor: "pointer", borderRadius: 10, border: form.plantillaId === "" ? "2px solid var(--blue)" : "1px dashed var(--line)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 11, color: "var(--muted)", padding: 6 }}>
+                  Otra tarjeta / banco
+                </div>
               </div>
             </div>
 
