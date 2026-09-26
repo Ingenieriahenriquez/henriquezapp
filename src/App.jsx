@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
+import { TARJETAS_BANCO } from "./tarjetasBancos";
 import { supabase } from "./supabaseClient";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
@@ -3172,7 +3173,7 @@ function saldoDeCuenta(cuenta, movimientos) {
 
 function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
   const [openCuenta, setOpenCuenta] = useState(false);
-  const [form, setForm] = useState({ nombre: "", tipo: "Corriente", banco: "Banreservas", saldoInicial: 0, esPredeterminada: false });
+  const [form, setForm] = useState({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, esPredeterminada: false, plantillaId: "" });
   const [cuentaSel, setCuentaSel] = useState(null);
   const [movTipo, setMovTipo] = useState("Depósito");
   const [movMonto, setMovMonto] = useState("");
@@ -3182,13 +3183,17 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
   const activa = cuentas.find((c) => c.id === cuentaSel) || cuentas[0] || null;
 
   function abrirNuevaCuenta() {
-    setForm({ nombre: "", tipo: "Corriente", banco: "Banreservas", saldoInicial: 0, esPredeterminada: cuentas.length === 0 });
+    setForm({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, esPredeterminada: cuentas.length === 0, plantillaId: "" });
     setOpenCuenta(true);
+  }
+
+  function elegirPlantilla(t) {
+    setForm({ ...form, plantillaId: t.id, banco: t.banco, tipo: t.tipo, ultimos4: t.ultimos4, nombre: form.nombre || t.etiqueta });
   }
 
   function guardarCuenta() {
     if (!form.nombre.trim()) { alert("Ponle un nombre o apodo a la cuenta (ej. Corriente principal)."); return; }
-    const nueva = { id: uid(), nombre: form.nombre.trim(), tipo: form.tipo, banco: form.banco.trim() || "Banreservas", saldoInicial: Number(form.saldoInicial) || 0, esPredeterminada: !!form.esPredeterminada, creadoEn: new Date().toISOString() };
+    const nueva = { id: uid(), nombre: form.nombre.trim(), tipo: form.tipo, banco: form.banco.trim() || "Banreservas", ultimos4: form.ultimos4.trim(), plantillaId: form.plantillaId || "", saldoInicial: Number(form.saldoInicial) || 0, esPredeterminada: !!form.esPredeterminada, creadoEn: new Date().toISOString() };
     let listaFinal = [...cuentas, nueva];
     if (nueva.esPredeterminada) {
       listaFinal = listaFinal.map((c) => (c.id === nueva.id ? c : { ...c, esPredeterminada: false }));
@@ -3253,23 +3258,31 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
       ) : (
         <>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            {cuentas.map((c) => (
-              <div key={c.id} onClick={() => setCuentaSel(c.id)}
-                className="hw-card" style={{ cursor: "pointer", minWidth: 220, flex: "1 1 220px", borderColor: activa?.id === c.id ? "var(--blue)" : undefined, boxShadow: activa?.id === c.id ? "0 0 0 2px var(--blue-soft)" : undefined }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14.5 }}>{c.nombre}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{c.banco} · {c.tipo}</div>
+            {cuentas.map((c) => {
+              const plantilla = TARJETAS_BANCO.find((t) => t.id === c.plantillaId);
+              return (
+                <div key={c.id} onClick={() => setCuentaSel(c.id)}
+                  className="hw-card" style={{ cursor: "pointer", minWidth: 240, flex: "1 1 240px", overflow: "hidden", padding: 0, borderColor: activa?.id === c.id ? "var(--blue)" : undefined, boxShadow: activa?.id === c.id ? "0 0 0 2px var(--blue-soft)" : undefined }}>
+                  {plantilla && (
+                    <div style={{ height: 70, backgroundImage: `url(${plantilla.imagen})`, backgroundSize: "cover", backgroundPosition: "center 30%" }} />
+                  )}
+                  <div style={{ padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14.5 }}>{c.nombre}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{c.banco} · {c.tipo}{c.ultimos4 ? ` · ····${c.ultimos4}` : ""}</div>
+                      </div>
+                      {c.esPredeterminada && <span className="hw-badge blue">Predeterminada</span>}
+                    </div>
+                    <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                      {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
+                      <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
+                    </div>
                   </div>
-                  {c.esPredeterminada && <span className="hw-badge blue">Predeterminada</span>}
                 </div>
-                <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
-                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                  {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
-                  <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: -8, marginBottom: 16 }}>
@@ -3324,8 +3337,24 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
 
       {openCuenta && (
         <div className="hw-modal-overlay" onClick={() => setOpenCuenta(false)}>
-          <div className="hw-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+          <div className="hw-modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
             <div className="hw-modal-head"><div className="hw-modal-title">Nueva cuenta bancaria</div><button className="hw-close" onClick={() => setOpenCuenta(false)}><X size={18} /></button></div>
+
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>Elige la tarjeta que corresponde (esto llena el banco y el tipo por ti):</div>
+            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, marginBottom: 14 }}>
+              {TARJETAS_BANCO.map((t) => (
+                <div key={t.id} onClick={() => elegirPlantilla(t)}
+                  style={{ flex: "0 0 auto", width: 118, cursor: "pointer", borderRadius: 10, overflow: "hidden", border: form.plantillaId === t.id ? "2px solid var(--blue)" : "2px solid transparent", boxShadow: form.plantillaId === t.id ? "0 0 0 2px var(--blue-soft)" : "0 1px 3px rgba(16,24,39,0.15)" }}>
+                  <div style={{ height: 74, backgroundImage: `url(${t.imagen})`, backgroundSize: "cover", backgroundPosition: "center 30%" }} />
+                  <div style={{ fontSize: 10, padding: "4px 6px", color: "var(--muted)", lineHeight: 1.3 }}>{t.etiqueta}{t.ultimos4 ? ` ····${t.ultimos4}` : ""}</div>
+                </div>
+              ))}
+              <div key="otra" onClick={() => setForm({ ...form, plantillaId: "" })}
+                style={{ flex: "0 0 auto", width: 118, height: 74, cursor: "pointer", borderRadius: 10, border: form.plantillaId === "" ? "2px solid var(--blue)" : "1px dashed var(--line)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 11, color: "var(--muted)", padding: 6 }}>
+                Otra tarjeta / banco
+              </div>
+            </div>
+
             <FieldRow label="Nombre o apodo (ej. Corriente principal)">
               <input className="hw-input" autoFocus value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
             </FieldRow>
@@ -3333,10 +3362,14 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
               <select className="hw-select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
                 <option>Corriente</option>
                 <option>Ahorros</option>
+                <option>Crédito</option>
               </select>
             </FieldRow>
             <FieldRow label="Banco">
               <input className="hw-input" value={form.banco} onChange={(e) => setForm({ ...form, banco: e.target.value })} />
+            </FieldRow>
+            <FieldRow label="Últimos 4 dígitos de la tarjeta (opcional)">
+              <input className="hw-input" maxLength={4} value={form.ultimos4} onChange={(e) => setForm({ ...form, ultimos4: e.target.value.replace(/\D/g, "") })} />
             </FieldRow>
             <FieldRow label="Saldo actual (con el que empieza en el sistema)">
               <input className="hw-input" type="number" value={form.saldoInicial} onChange={(e) => setForm({ ...form, saldoInicial: e.target.value })} />
