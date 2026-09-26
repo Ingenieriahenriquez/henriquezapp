@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { TARJETAS_BANCO } from "./tarjetasBancos";
@@ -3164,8 +3164,21 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
 
 const TIPOS_MOV_BANCO_ENTRADA = ["Depósito", "Transferencia recibida", "Pago de factura (transferencia)"];
 
+function esCuentaCredito(cuenta) {
+  return cuenta?.tipo === "Crédito";
+}
+
+// Para cuentas normales (Corriente/Ahorros) el "saldo" es el dinero disponible:
+// sube con depósitos y baja con retiros. Para una tarjeta de Crédito es al revés:
+// lo que devuelve esta función es la DEUDA (lo que se debe), que sube con los
+// "Cargo" y baja con los "Pago".
 function saldoDeCuenta(cuenta, movimientos) {
   const movs = movimientos.filter((m) => m.cuentaId === cuenta.id);
+  if (esCuentaCredito(cuenta)) {
+    const cargos = movs.filter((m) => m.tipo === "Cargo").reduce((s, m) => s + Number(m.monto), 0);
+    const pagos = movs.filter((m) => m.tipo === "Pago").reduce((s, m) => s + Number(m.monto), 0);
+    return Number(cuenta.saldoInicial || 0) + cargos - pagos;
+  }
   const entradas = movs.filter((m) => TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo)).reduce((s, m) => s + Number(m.monto), 0);
   const salidas = movs.filter((m) => !TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo)).reduce((s, m) => s + Number(m.monto), 0);
   return Number(cuenta.saldoInicial || 0) + entradas - salidas;
@@ -3173,7 +3186,7 @@ function saldoDeCuenta(cuenta, movimientos) {
 
 function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
   const [openCuenta, setOpenCuenta] = useState(false);
-  const [form, setForm] = useState({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, esPredeterminada: false, plantillaId: "" });
+  const [form, setForm] = useState({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, limiteCredito: 0, esPredeterminada: false, plantillaId: "" });
   const [cuentaSel, setCuentaSel] = useState(null);
   const [movTipo, setMovTipo] = useState("Depósito");
   const [movMonto, setMovMonto] = useState("");
@@ -3182,8 +3195,12 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
 
   const activa = cuentas.find((c) => c.id === cuentaSel) || cuentas[0] || null;
 
+  useEffect(() => {
+    setMovTipo(esCuentaCredito(activa) ? "Cargo" : "Depósito");
+  }, [activa?.id]);
+
   function abrirNuevaCuenta() {
-    setForm({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, esPredeterminada: cuentas.length === 0, plantillaId: "" });
+    setForm({ nombre: "", tipo: "Corriente", banco: "Banreservas", ultimos4: "", saldoInicial: 0, limiteCredito: 0, esPredeterminada: cuentas.length === 0, plantillaId: "" });
     setOpenCuenta(true);
   }
 
@@ -3193,7 +3210,7 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
 
   function guardarCuenta() {
     if (!form.nombre.trim()) { alert("Ponle un nombre o apodo a la cuenta (ej. Corriente principal)."); return; }
-    const nueva = { id: uid(), nombre: form.nombre.trim(), tipo: form.tipo, banco: form.banco.trim() || "Banreservas", ultimos4: form.ultimos4.trim(), plantillaId: form.plantillaId || "", saldoInicial: Number(form.saldoInicial) || 0, esPredeterminada: !!form.esPredeterminada, creadoEn: new Date().toISOString() };
+    const nueva = { id: uid(), nombre: form.nombre.trim(), tipo: form.tipo, banco: form.banco.trim() || "Banreservas", ultimos4: form.ultimos4.trim(), plantillaId: form.plantillaId || "", saldoInicial: Number(form.saldoInicial) || 0, limiteCredito: form.tipo === "Crédito" ? Number(form.limiteCredito) || 0 : 0, esPredeterminada: form.tipo === "Crédito" ? false : !!form.esPredeterminada, creadoEn: new Date().toISOString() };
     let listaFinal = [...cuentas, nueva];
     if (nueva.esPredeterminada) {
       listaFinal = listaFinal.map((c) => (c.id === nueva.id ? c : { ...c, esPredeterminada: false }));
@@ -3234,21 +3251,31 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
   }
 
   const movActiva = activa ? movimientos.filter((m) => m.cuentaId === activa.id).slice().reverse() : [];
-  const totalBancos = cuentas.reduce((s, c) => s + saldoDeCuenta(c, movimientos), 0);
+  const cuentasDebito = cuentas.filter((c) => !esCuentaCredito(c));
+  const cuentasCredito = cuentas.filter((c) => esCuentaCredito(c));
+  const totalBancos = cuentasDebito.reduce((s, c) => s + saldoDeCuenta(c, movimientos), 0);
+  const totalDeudaCredito = cuentasCredito.reduce((s, c) => s + saldoDeCuenta(c, movimientos), 0);
 
   return (
     <div>
       <div className="hw-header">
-        <div><div className="hw-title">Bancos</div><div className="hw-sub">Cuentas bancarias, depósitos, retiros y transferencias</div></div>
+        <div><div className="hw-title">Bancos</div><div className="hw-sub">Cuentas bancarias, tarjetas de crédito, depósitos, retiros y transferencias</div></div>
         <button className="hw-btn" onClick={abrirNuevaCuenta}><Plus size={15} /> Nueva cuenta</button>
       </div>
 
       <div className="hw-grid" style={{ marginBottom: 16 }}>
         <div className="hw-card">
           <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--blue-soft)" }}><Landmark size={17} color="var(--blue)" /></div></div>
-          <div className="hw-kpi-label">Total en todas las cuentas</div>
+          <div className="hw-kpi-label">Total disponible (cuentas de débito)</div>
           <div className="hw-kpi-value" style={{ color: "var(--blue)" }}>{money(totalBancos)}</div>
         </div>
+        {cuentasCredito.length > 0 && (
+          <div className="hw-card">
+            <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--red-soft)" }}><CreditCard size={17} color="var(--red)" /></div></div>
+            <div className="hw-kpi-label">Total adeudado en tarjetas de crédito</div>
+            <div className="hw-kpi-value" style={{ color: "var(--red)" }}>{money(totalDeudaCredito)}</div>
+          </div>
+        )}
       </div>
 
       {cuentas.length === 0 ? (
@@ -3277,9 +3304,22 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
                     </div>
                     {c.esPredeterminada && <span className="hw-badge blue" style={{ flexShrink: 0 }}>Predeterminada</span>}
                   </div>
-                  <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                  {esCuentaCredito(c) ? (
+                    <div style={{ marginTop: 12, display: "flex", gap: 18 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "var(--muted)" }}>Debe</div>
+                        <div className="hw-kpi-value" style={{ fontSize: 19, color: "var(--red)" }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "var(--muted)" }}>Disponible</div>
+                        <div className="hw-kpi-value" style={{ fontSize: 19 }}>{money(Number(c.limiteCredito || 0) - saldoDeCuenta(c, movimientos))}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="hw-kpi-value" style={{ marginTop: 12, fontSize: 21 }}>{money(saldoDeCuenta(c, movimientos))}</div>
+                  )}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    {!c.esPredeterminada && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
+                    {!c.esPredeterminada && !esCuentaCredito(c) && <button className="hw-btn ghost small" onClick={(e) => { e.stopPropagation(); marcarPredeterminada(c.id); }}>Hacer predeterminada</button>}
                     <button className="hw-btn soft-red small" onClick={(e) => { e.stopPropagation(); eliminarCuenta(c.id); }}>Eliminar</button>
                   </div>
                 </div>
@@ -3295,11 +3335,25 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
             <>
               <div className="hw-panel" style={{ padding: 16, marginBottom: 16 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10 }}>Registrar movimiento en "{activa.nombre}"</div>
+                {esCuentaCredito(activa) && (
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>
+                    Un "Cargo" es cuando usa la tarjeta (sube lo que debe). Un "Pago" es cuando le abona al banco (baja lo que debe).
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <select className="hw-select" value={movTipo} onChange={(e) => setMovTipo(e.target.value)} style={{ maxWidth: 220 }}>
-                    <option>Depósito</option>
-                    <option>Retiro</option>
-                    <option>Transferencia a otra cuenta</option>
+                    {esCuentaCredito(activa) ? (
+                      <>
+                        <option>Cargo</option>
+                        <option>Pago</option>
+                      </>
+                    ) : (
+                      <>
+                        <option>Depósito</option>
+                        <option>Retiro</option>
+                        <option>Transferencia a otra cuenta</option>
+                      </>
+                    )}
                   </select>
                   {movTipo === "Transferencia a otra cuenta" && (
                     <select className="hw-select" value={movDestinoId} onChange={(e) => setMovDestinoId(e.target.value)} style={{ maxWidth: 200 }}>
@@ -3318,16 +3372,22 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
                 <table className="hw-table hw-t-bancomov">
                   <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Descripción</th></tr></thead>
                   <tbody>
-                    {movActiva.map((m) => (
-                      <tr key={m.id}>
-                        <td>{new Date(m.fechaHora).toLocaleString("es-DO", { dateStyle: "short", timeStyle: "short" })}</td>
-                        <td>{m.tipo}{m.facturaId ? " (automático)" : ""}</td>
-                        <td style={{ color: TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo) ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
-                          {TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo) ? "+" : "−"}{money(m.monto)}
-                        </td>
-                        <td>{m.descripcion}</td>
-                      </tr>
-                    ))}
+                    {movActiva.map((m) => {
+                      // Para una tarjeta de crédito, "Cargo" sube la deuda (se muestra en rojo) y
+                      // "Pago" la baja (se muestra en verde) — es lo opuesto a una cuenta normal.
+                      const esSubeDeuda = esCuentaCredito(activa) ? m.tipo === "Cargo" : TIPOS_MOV_BANCO_ENTRADA.includes(m.tipo);
+                      const colorMonto = esCuentaCredito(activa) ? (esSubeDeuda ? "var(--red)" : "var(--green)") : (esSubeDeuda ? "var(--green)" : "var(--red)");
+                      return (
+                        <tr key={m.id}>
+                          <td>{new Date(m.fechaHora).toLocaleString("es-DO", { dateStyle: "short", timeStyle: "short" })}</td>
+                          <td>{m.tipo}{m.facturaId ? " (automático)" : ""}</td>
+                          <td style={{ color: colorMonto, fontWeight: 600 }}>
+                            {esSubeDeuda ? "+" : "−"}{money(m.monto)}
+                          </td>
+                          <td>{m.descripcion}</td>
+                        </tr>
+                      );
+                    })}
                     {movActiva.length === 0 && <tr><td colSpan={4} className="hw-empty">Sin movimientos todavía en esta cuenta</td></tr>}
                   </tbody>
                 </table>
@@ -3376,13 +3436,29 @@ function Bancos({ cuentas, setCuentas, movimientos, setMovimientos }) {
             <FieldRow label="Últimos 4 dígitos de la tarjeta (opcional)">
               <input className="hw-input" maxLength={4} value={form.ultimos4} onChange={(e) => setForm({ ...form, ultimos4: e.target.value.replace(/\D/g, "") })} />
             </FieldRow>
-            <FieldRow label="Saldo actual (con el que empieza en el sistema)">
-              <input className="hw-input" type="number" value={form.saldoInicial} onChange={(e) => setForm({ ...form, saldoInicial: e.target.value })} />
-            </FieldRow>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted)", marginBottom: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={form.esPredeterminada} onChange={(e) => setForm({ ...form, esPredeterminada: e.target.checked })} />
-              Usar esta cuenta para recibir automáticamente los pagos por transferencia
-            </label>
+            {form.tipo === "Crédito" ? (
+              <>
+                <FieldRow label="Límite de crédito">
+                  <input className="hw-input" type="number" value={form.limiteCredito} onChange={(e) => setForm({ ...form, limiteCredito: e.target.value })} />
+                </FieldRow>
+                <FieldRow label="Lo que debe actualmente (con lo que empieza en el sistema)">
+                  <input className="hw-input" type="number" value={form.saldoInicial} onChange={(e) => setForm({ ...form, saldoInicial: e.target.value })} />
+                </FieldRow>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 14 }}>
+                  Revise su último estado de cuenta de la tarjeta y ponga ahí lo que debe hoy — no lo que ha gastado en total, sino el balance pendiente de pagar.
+                </div>
+              </>
+            ) : (
+              <>
+                <FieldRow label="Saldo actual (con el que empieza en el sistema)">
+                  <input className="hw-input" type="number" value={form.saldoInicial} onChange={(e) => setForm({ ...form, saldoInicial: e.target.value })} />
+                </FieldRow>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted)", marginBottom: 14, cursor: "pointer" }}>
+                  <input type="checkbox" checked={form.esPredeterminada} onChange={(e) => setForm({ ...form, esPredeterminada: e.target.checked })} />
+                  Usar esta cuenta para recibir automáticamente los pagos por transferencia
+                </label>
+              </>
+            )}
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={guardarCuenta}>Guardar cuenta</button>
           </div>
         </div>
