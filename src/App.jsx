@@ -2533,11 +2533,35 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     const esManual = tipoComprobante !== "Consumidor Final" && tipoComprobante !== "Factura de Consumo";
     if (esManual && !ncfManualTexto.trim()) { alert("Escribe el número de comprobante para este tipo de factura."); return; }
     if (editingId) {
+      const original = facturas.find((f) => f.id === editingId);
+      const itemsFinales = items.filter((i) => i.nombre);
+      const estadoFinal = original?.estado === "Anulada" ? original.estado : estadoPago;
       setFacturas(facturas.map((f) => (f.id === editingId ? {
-        ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), metodo,
-        estado: f.estado === "Anulada" ? f.estado : estadoPago, aplicaItbis,
+        ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: itemsFinales, metodo,
+        estado: estadoFinal, aplicaItbis,
         tipoComprobante, ncfManual: esManual, ncf: esManual ? ncfManualTexto.trim() : f.ncf,
       } : f)));
+      // Mantiene sincronizado el movimiento automático en Bancos: lo agrega si ahora
+      // corresponde (transferencia + pagada) y antes no existía, lo actualiza si el
+      // monto cambió, o lo quita si ya no corresponde (cambió el método o el estado).
+      if (setMovimientosBancarios) {
+        const totalFactura = calcTotal(itemsFinales, aplicaItbis).total;
+        const movExistente = movimientosBancarios.find((m) => m.facturaId === editingId);
+        const corresponde = metodo === "Transferencia" && estadoFinal === "Pagada";
+        if (corresponde && !movExistente) {
+          const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada);
+          if (cuentaPred) {
+            setMovimientosBancarios([...movimientosBancarios, {
+              id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de factura (transferencia)", monto: totalFactura,
+              descripcion: `Factura ${esManual ? ncfManualTexto.trim() : original?.ncf} · ${cliente.nombre}`, fechaHora: new Date().toISOString(), facturaId: editingId,
+            }]);
+          }
+        } else if (corresponde && movExistente && Number(movExistente.monto) !== totalFactura) {
+          setMovimientosBancarios(movimientosBancarios.map((m) => (m.id === movExistente.id ? { ...m, monto: totalFactura } : m)));
+        } else if (!corresponde && movExistente) {
+          setMovimientosBancarios(movimientosBancarios.filter((m) => m.id !== movExistente.id));
+        }
+      }
     } else {
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
