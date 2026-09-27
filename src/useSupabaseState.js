@@ -29,6 +29,7 @@ const CAMEL_TO_SNAKE = {
   ultimos4: "ultimos4",
   plantillaId: "plantilla_id",
   limiteCredito: "limite_credito",
+  gastoId: "gasto_id",
 };
 const SNAKE_TO_CAMEL = Object.fromEntries(
   Object.entries(CAMEL_TO_SNAKE).map(([camel, snake]) => [snake, camel])
