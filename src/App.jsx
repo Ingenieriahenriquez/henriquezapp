@@ -2549,12 +2549,14 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
         const movExistente = movimientosBancarios.find((m) => m.facturaId === editingId);
         const corresponde = metodo === "Transferencia" && estadoFinal === "Pagada";
         if (corresponde && !movExistente) {
-          const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada);
+          const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
           if (cuentaPred) {
             setMovimientosBancarios([...movimientosBancarios, {
               id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de factura (transferencia)", monto: totalFactura,
               descripcion: `Factura ${esManual ? ncfManualTexto.trim() : original?.ncf} · ${cliente.nombre}`, fechaHora: new Date().toISOString(), facturaId: editingId,
             }]);
+          } else {
+            alert("La factura se guardó, pero no se pudo abonar en Bancos porque todavía no tienes ninguna cuenta bancaria creada. Ve a la opción \"Bancos\" y crea una cuenta (puedes marcarla como \"Predeterminada\").");
           }
         } else if (corresponde && movExistente && Number(movExistente.monto) !== totalFactura) {
           setMovimientosBancarios(movimientosBancarios.map((m) => (m.id === movExistente.id ? { ...m, monto: totalFactura } : m)));
@@ -2572,13 +2574,15 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
       // Si se paga por transferencia y ya está pagada, se abona sola a la cuenta
       // bancaria marcada como predeterminada — así no hay que registrarlo dos veces.
       if (metodo === "Transferencia" && estadoPago === "Pagada" && setMovimientosBancarios) {
-        const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada);
+        const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
         if (cuentaPred) {
           const totalFactura = calcTotal(nueva.items, nueva.aplicaItbis).total;
           setMovimientosBancarios([...movimientosBancarios, {
             id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de factura (transferencia)", monto: totalFactura,
             descripcion: `Factura ${nueva.ncf} · ${nueva.clienteNombre}`, fechaHora: new Date().toISOString(), facturaId: nueva.id,
           }]);
+        } else {
+          alert("La factura se guardó, pero no se pudo abonar en Bancos porque todavía no tienes ninguna cuenta bancaria creada. Ve a la opción \"Bancos\" y crea una cuenta (puedes marcarla como \"Predeterminada\").");
         }
       }
     }
