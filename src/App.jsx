@@ -122,6 +122,7 @@ const NAV = [
   { id: "ordenes", label: "Órdenes de trabajo", icon: Hammer },
   { id: "inventario", label: "Inventario", icon: Package },
   { id: "compras", label: "Compras a suplidores", icon: ShoppingCart },
+  { id: "gastos", label: "Gastos", icon: Wallet },
   { id: "reportes", label: "Reportes", icon: BarChart3 },
   { id: "usuarios", label: "Usuarios", icon: UserCog },
   { id: "codigobarras", label: "Código de barras · Consulta", icon: Barcode },
@@ -591,7 +592,7 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   );
 }
 
-function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos, cuentasBancarias, movimientosBancarios }) {
+function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, productos, compras, gastos, recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos, cuentasBancarias, movimientosBancarios }) {
   const [descargando, setDescargando] = useState(false);
 
   function descargarRespaldo() {
@@ -602,7 +603,7 @@ function RespaldoPanel({ negocioConfig, clientes, facturas, cotizaciones, produc
         version: 1,
         generadoEn: new Date().toISOString(),
         negocio: negocioConfig[0] || null,
-        clientes, facturas, cotizaciones, productos, compras,
+        clientes, facturas, cotizaciones, productos, compras, gastos,
         recepciones, ordenes, permisos, cajaSesiones, cajaMovimientos, abonosPagos,
         cuentasBancarias, movimientosBancarios,
       };
@@ -689,9 +690,9 @@ function CambiarContrasenaPanel({ miEmail }) {
 
 function Ajustes({
   negocioConfig, setNegocioConfig, esAdmin, miEmail,
-  setClientes, setFacturas, setCotizaciones, setProductos, setCompras,
+  setClientes, setFacturas, setCotizaciones, setProductos, setCompras, setGastos,
   setRecepciones, setOrdenes, setCajaSesiones, setCajaMovimientos, setAbonosPagos,
-  clientes, facturas, cotizaciones, productos, compras, recepciones, ordenes,
+  clientes, facturas, cotizaciones, productos, compras, gastos, recepciones, ordenes,
   permisos, cajaSesiones, cajaMovimientos, abonosPagos,
   cuentasBancarias, movimientosBancarios,
 }) {
@@ -706,7 +707,7 @@ function Ajustes({
   function reiniciarSistema() {
     if (confirmacionReset.trim().toUpperCase() !== FRASE_RESET) return;
     const seguro = window.confirm(
-      "Esto va a borrar PERMANENTEMENTE: clientes, facturas, cotizaciones, productos, compras a suplidores, recepciones de equipos, órdenes de trabajo, caja y abonos.\n\nEl logo, los datos del negocio y los usuarios con acceso NO se van a borrar.\n\nEsta acción no se puede deshacer. ¿Estás completamente seguro?"
+      "Esto va a borrar PERMANENTEMENTE: clientes, facturas, cotizaciones, productos, compras a suplidores, gastos, recepciones de equipos, órdenes de trabajo, caja y abonos.\n\nEl logo, los datos del negocio y los usuarios con acceso NO se van a borrar.\n\nEsta acción no se puede deshacer. ¿Estás completamente seguro?"
     );
     if (!seguro) return;
     setClientes([]);
@@ -714,6 +715,7 @@ function Ajustes({
     setCotizaciones([]);
     setProductos([]);
     setCompras([]);
+    setGastos([]);
     setRecepciones([]);
     setOrdenes([]);
     setCajaSesiones([]);
@@ -812,7 +814,7 @@ function Ajustes({
 
       <RespaldoPanel
         negocioConfig={negocioConfig} clientes={clientes} facturas={facturas} cotizaciones={cotizaciones}
-        productos={productos} compras={compras} recepciones={recepciones} ordenes={ordenes}
+        productos={productos} compras={compras} gastos={gastos} recepciones={recepciones} ordenes={ordenes}
         permisos={permisos} cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
         cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios}
       />
@@ -1128,6 +1130,7 @@ function Panel({ session }) {
   const [negocioConfig, setNegocioConfig] = useSupabaseState("negocio_config");
   const [abonosPagos, setAbonosPagos] = useSupabaseState("abonos_pagos");
   const [compras, setCompras] = useSupabaseState("compras");
+  const [gastos, setGastos] = useSupabaseState("gastos");
   const [cuentasBancarias, setCuentasBancarias] = useSupabaseState("cuentas_bancarias");
   const [movimientosBancarios, setMovimientosBancarios] = useSupabaseState("movimientos_bancarios");
   const negocio = negocioConfig[0] || BUSINESS;
@@ -1514,6 +1517,9 @@ function Panel({ session }) {
         <div style={{ display: tab === "compras" ? "block" : "none" }}>
           <Compras compras={compras} setCompras={setCompras} productos={productos} setProductos={setProductos} />
         </div>
+        <div style={{ display: tab === "gastos" ? "block" : "none" }}>
+          <Gastos gastos={gastos} setGastos={setGastos} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
+        </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
@@ -1525,11 +1531,11 @@ function Panel({ session }) {
           <Ajustes
             negocioConfig={negocioConfig} setNegocioConfig={setNegocioConfig} esAdmin={esAdmin} miEmail={miEmail}
             setClientes={setClientes} setFacturas={setFacturas} setCotizaciones={setCotizaciones}
-            setProductos={setProductos} setCompras={setCompras} setRecepciones={setRecepciones}
+            setProductos={setProductos} setCompras={setCompras} setGastos={setGastos} setRecepciones={setRecepciones}
             setOrdenes={setOrdenes} setCajaSesiones={setCajaSesiones} setCajaMovimientos={setCajaMovimientos}
             setAbonosPagos={setAbonosPagos}
             clientes={clientes} facturas={facturas} cotizaciones={cotizaciones} productos={productos}
-            compras={compras} recepciones={recepciones} ordenes={ordenes} permisos={permisos}
+            compras={compras} gastos={gastos} recepciones={recepciones} ordenes={ordenes} permisos={permisos}
             cajaSesiones={cajaSesiones} cajaMovimientos={cajaMovimientos} abonosPagos={abonosPagos}
             cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios}
           />
@@ -1562,6 +1568,7 @@ const TILES = [
   { id: "recepcion", label: "Recepción\nequipos", icon: Wrench, from: "#9A6BD1", to: "#7448AC" },
   { id: "ordenes", label: "Órdenes de\ntrabajo", icon: Hammer, from: "#1D9A7C", to: "#116651" },
   { id: "compras", label: "Compras a\nsuplidores", icon: ShoppingCart, from: "#C2542A", to: "#933F1F" },
+  { id: "gastos", label: "Gastos", icon: Wallet, from: "#8A4FBF", to: "#623890" },
   { id: "reportes", label: "Reportes", icon: BarChart3, from: "#3F8FE0", to: "#2B67AC" },
   { id: "usuarios", label: "Usuarios", icon: UserCog, from: "#6B7280", to: "#454A52" },
   { id: "codigobarras", label: "Código de\nbarras · Consulta", icon: Barcode, from: "#1F2937", to: "#0F1520" },
@@ -3776,6 +3783,175 @@ function Compras({ compras, setCompras, productos, setProductos }) {
             <CompraItemsEditor items={items} setItems={setItems} productos={productos} />
             <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 10 }}>Total: {money(totalItems)}</div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar compra</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CATEGORIAS_GASTO = ["Servicios (luz, agua, internet)", "Alquiler", "Nómina", "Combustible/Transporte", "Mantenimiento", "Impuestos", "Otro"];
+
+function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [concepto, setConcepto] = useState("");
+  const [categoria, setCategoria] = useState(CATEGORIAS_GASTO[0]);
+  const [monto, setMonto] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [metodo, setMetodo] = useState("Transferencia");
+  const [nota, setNota] = useState("");
+
+  function abrirNueva() {
+    setEditingId(null);
+    setConcepto("");
+    setCategoria(CATEGORIAS_GASTO[0]);
+    setMonto("");
+    setFecha(new Date().toISOString().slice(0, 10));
+    setMetodo("Transferencia");
+    setNota("");
+    setOpen(true);
+  }
+
+  function abrirEdicion(g) {
+    setEditingId(g.id);
+    setConcepto(g.concepto);
+    setCategoria(g.categoria || CATEGORIAS_GASTO[0]);
+    setMonto(String(g.monto));
+    setFecha(g.fecha);
+    setMetodo(g.metodo);
+    setNota(g.nota || "");
+    setOpen(true);
+  }
+
+  // Mantiene sincronizado el movimiento automático en Bancos para este gasto:
+  // lo agrega si corresponde (transferencia) y no existía, lo actualiza si el
+  // monto/descripción cambió, o lo quita si ya no corresponde (pasó a Efectivo).
+  function sincronizarMovimiento(gastoId, metodoFinal, montoFinal, descripcionFinal) {
+    if (!setMovimientosBancarios) return;
+    const movExistente = movimientosBancarios.find((m) => m.gastoId === gastoId);
+    const corresponde = metodoFinal === "Transferencia";
+    if (corresponde && !movExistente) {
+      const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
+      if (cuentaPred) {
+        setMovimientosBancarios([...movimientosBancarios, {
+          id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de gasto (transferencia)", monto: Number(montoFinal),
+          descripcion: descripcionFinal, fechaHora: new Date().toISOString(), gastoId,
+        }]);
+      } else {
+        alert("El gasto se guardó, pero no se pudo debitar en Bancos porque todavía no tienes ninguna cuenta bancaria creada. Ve a la opción \"Bancos\" y crea una cuenta.");
+      }
+    } else if (corresponde && movExistente && (Number(movExistente.monto) !== Number(montoFinal) || movExistente.descripcion !== descripcionFinal)) {
+      setMovimientosBancarios(movimientosBancarios.map((m) => (m.id === movExistente.id ? { ...m, monto: Number(montoFinal), descripcion: descripcionFinal } : m)));
+    } else if (!corresponde && movExistente) {
+      setMovimientosBancarios(movimientosBancarios.filter((m) => m.id !== movExistente.id));
+    }
+  }
+
+  function guardar() {
+    if (!concepto.trim()) { alert("Escribe en qué se pagó este gasto."); return; }
+    if (!monto || Number(monto) <= 0) { alert("Escribe un monto válido."); return; }
+    const descripcion = `Gasto: ${concepto.trim()}`;
+    if (editingId) {
+      setGastos(gastos.map((g) => (g.id === editingId ? {
+        ...g, concepto: concepto.trim(), categoria, monto: Number(monto), fecha, metodo, nota: nota.trim(),
+      } : g)));
+      sincronizarMovimiento(editingId, metodo, Number(monto), descripcion);
+    } else {
+      const nuevo = {
+        id: uid(), concepto: concepto.trim(), categoria, monto: Number(monto), fecha,
+        creadoEn: new Date().toISOString(), metodo, nota: nota.trim(),
+      };
+      setGastos([...gastos, nuevo]);
+      sincronizarMovimiento(nuevo.id, metodo, Number(monto), descripcion);
+    }
+    setOpen(false);
+    setEditingId(null);
+  }
+
+  function eliminar(id) {
+    if (!window.confirm("¿Eliminar este gasto? Si tenía un movimiento automático en Bancos, también se quitará de ahí.")) return;
+    setGastos(gastos.filter((g) => g.id !== id));
+    if (setMovimientosBancarios) {
+      setMovimientosBancarios(movimientosBancarios.filter((m) => m.gastoId !== id));
+    }
+  }
+
+  const totalGeneral = gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  const esteMes = new Date().toISOString().slice(0, 7);
+  const totalMes = gastos.filter((g) => (g.fecha || "").slice(0, 7) === esteMes).reduce((s, g) => s + (Number(g.monto) || 0), 0);
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Gastos</div><div className="hw-sub">Servicios, pagos y otros gastos del negocio — si es por transferencia, se debita solo de tu cuenta predeterminada</div></div>
+        <button className="hw-btn" onClick={abrirNueva}><Plus size={15} /> Nuevo gasto</button>
+      </div>
+
+      <div className="hw-grid" style={{ marginBottom: 16 }}>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--red-soft)" }}><Wallet size={17} color="var(--red)" /></div></div>
+          <div className="hw-kpi-label">Gastado este mes</div>
+          <div className="hw-kpi-value">{money(totalMes)}</div>
+        </div>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--accent-soft)" }}><Coins size={17} color="var(--accent2)" /></div></div>
+          <div className="hw-kpi-label">Total histórico</div>
+          <div className="hw-kpi-value">{money(totalGeneral)}</div>
+        </div>
+      </div>
+
+      <div className="hw-panel">
+        <table className="hw-table">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Método</th><th>Monto</th><th></th></tr></thead>
+          <tbody>
+            {[...gastos].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((g) => (
+              <tr key={g.id}>
+                <td>{g.fecha}</td>
+                <td>{g.concepto}</td>
+                <td>{g.categoria}</td>
+                <td>{g.metodo}{g.metodo === "Transferencia" && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Auto</span>}</td>
+                <td>{money(g.monto)}</td>
+                <td style={{ display: "flex", gap: 6 }}>
+                  <button className="hw-btn ghost small" onClick={() => abrirEdicion(g)}><Edit2 size={13} /></button>
+                  <button className="hw-btn ghost small" onClick={() => eliminar(g.id)}><X size={13} /></button>
+                </td>
+              </tr>
+            ))}
+            {gastos.length === 0 && <tr><td colSpan={6} className="hw-empty">Aún no has registrado ningún gasto</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {open && (
+        <div className="hw-modal-overlay" onClick={() => setOpen(false)}>
+          <div className="hw-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">{editingId ? "Editar gasto" : "Nuevo gasto"}</div><button className="hw-close" onClick={() => setOpen(false)}><X size={18} /></button></div>
+            <FieldRow label="¿En qué se pagó? *"><input className="hw-input" value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Ej: Factura de luz de la oficina" /></FieldRow>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Categoría">
+                <select className="hw-input" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                  {CATEGORIAS_GASTO.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </FieldRow>
+              <FieldRow label="Fecha"><input className="hw-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></FieldRow>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Monto *"><input className="hw-input" type="number" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0.00" /></FieldRow>
+              <FieldRow label="Método de pago">
+                <select className="hw-input" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
+                  <option>Transferencia</option>
+                  <option>Efectivo</option>
+                </select>
+              </FieldRow>
+            </div>
+            {metodo === "Transferencia" && (
+              <div style={{ fontSize: 12.5, color: "var(--muted)", margin: "2px 0 8px" }}>
+                Este monto se debitará automáticamente de tu cuenta bancaria predeterminada al guardar.
+              </div>
+            )}
+            <FieldRow label="Nota (opcional)"><input className="hw-input" value={nota} onChange={(e) => setNota(e.target.value)} /></FieldRow>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar gasto</button>
           </div>
         </div>
       )}
