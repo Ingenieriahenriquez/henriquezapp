@@ -3790,7 +3790,7 @@ function Compras({ compras, setCompras, productos, setProductos }) {
   );
 }
 
-const CATEGORIAS_GASTO = ["Servicios (luz, agua, internet)", "Alquiler", "Nómina", "Combustible/Transporte", "Mantenimiento", "Impuestos", "Otro"];
+const CATEGORIAS_GASTO = ["Servicios (luz, agua, internet)", "Alquiler", "Nómina", "Combustible/Transporte", "Mantenimiento", "Impuestos", "Almuerzo", "Desayuno", "Cena", "Placeres", "Recarga paquetico", "Materiales ferreteros", "Préstamos diversos", "Herrería", "Otro"];
 
 function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const [open, setOpen] = useState(false);
