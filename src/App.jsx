@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard, Camera } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { TARJETAS_BANCO } from "./tarjetasBancos";
@@ -3801,6 +3801,85 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [metodo, setMetodo] = useState("Transferencia");
   const [nota, setNota] = useState("");
+  const [leyendoFoto, setLeyendoFoto] = useState(false);
+  const [avisoFoto, setAvisoFoto] = useState("");
+  const fotoInputRef = useRef(null);
+
+  // Carga la librería de lectura de texto (Tesseract.js) desde internet la
+  // primera vez que se usa, para no hacer la app más pesada si nunca se usa esto.
+  function cargarLectorTexto() {
+    return new Promise((resolve, reject) => {
+      if (window.Tesseract) { resolve(window.Tesseract); return; }
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js";
+      script.onload = () => resolve(window.Tesseract);
+      script.onerror = () => reject(new Error("No se pudo cargar el lector de fotos. Revisa tu conexión a internet e intenta de nuevo."));
+      document.body.appendChild(script);
+    });
+  }
+
+  function numeroDeTexto(str) {
+    const n = parseFloat(str.replace(/,/g, ""));
+    return isNaN(n) ? null : n;
+  }
+
+  // Intenta adivinar el nombre del lugar (primera línea con letras de verdad)
+  // y el total (busca la palabra "total" y el número más a la derecha en esa
+  // línea; si no encuentra ninguna línea así, usa el número más grande del recibo).
+  function extraerDatosDeRecibo(texto) {
+    const lineas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
+    let lugar = "";
+    for (const linea of lineas) {
+      const soloLetras = linea.replace(/[^a-zA-ZÀ-ÿ\s]/g, "").trim();
+      if (soloLetras.length >= 3) {
+        lugar = linea.replace(/[^\w\sÀ-ÿ.,&-]/g, "").trim();
+        break;
+      }
+    }
+    const patronNumero = /\d{1,3}(?:,\d{3})*(?:\.\d{2})?/g;
+    const candidatos = [];
+    lineas.forEach((linea) => {
+      const limpio = linea.toLowerCase();
+      if (limpio.includes("total") && !limpio.includes("subtotal")) {
+        const coincidencias = linea.match(patronNumero);
+        if (coincidencias) {
+          const n = numeroDeTexto(coincidencias[coincidencias.length - 1]);
+          if (n !== null) candidatos.push(n);
+        }
+      }
+    });
+    let total = candidatos.length ? Math.max(...candidatos) : null;
+    if (total === null) {
+      const todos = texto.match(patronNumero) || [];
+      const numeros = todos.map(numeroDeTexto).filter((n) => n !== null);
+      if (numeros.length) total = Math.max(...numeros);
+    }
+    return { lugar, total };
+  }
+
+  async function leerFoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setAvisoFoto("");
+    setLeyendoFoto(true);
+    try {
+      const Tesseract = await cargarLectorTexto();
+      const { data } = await Tesseract.recognize(file, "spa");
+      const { lugar, total } = extraerDatosDeRecibo(data.text || "");
+      if (lugar) setConcepto(lugar);
+      if (total !== null) setMonto(String(total));
+      if (!lugar && total === null) {
+        setAvisoFoto("No se pudo leer bien la foto. Intenta con mejor luz, más cerca y sin inclinación, o escribe los datos a mano.");
+      } else {
+        setAvisoFoto("Detectado automáticamente — revisa que el lugar y el monto estén correctos antes de guardar.");
+      }
+    } catch (err) {
+      console.error(err);
+      setAvisoFoto("No se pudo leer la foto: " + err.message);
+    }
+    setLeyendoFoto(false);
+  }
 
   function abrirNueva() {
     setEditingId(null);
@@ -3810,6 +3889,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
     setFecha(new Date().toISOString().slice(0, 10));
     setMetodo("Transferencia");
     setNota("");
+    setAvisoFoto("");
     setOpen(true);
   }
 
@@ -3821,6 +3901,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
     setFecha(g.fecha);
     setMetodo(g.metodo);
     setNota(g.nota || "");
+    setAvisoFoto("");
     setOpen(true);
   }
 
@@ -3927,6 +4008,18 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
         <div className="hw-modal-overlay" onClick={() => setOpen(false)}>
           <div className="hw-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div className="hw-modal-head"><div className="hw-modal-title">{editingId ? "Editar gasto" : "Nuevo gasto"}</div><button className="hw-close" onClick={() => setOpen(false)}><X size={18} /></button></div>
+
+            <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={leerFoto} />
+            <button
+              className="hw-btn ghost"
+              style={{ width: "100%", justifyContent: "center", marginBottom: 10 }}
+              disabled={leyendoFoto}
+              onClick={() => fotoInputRef.current?.click()}
+            >
+              <Camera size={15} /> {leyendoFoto ? "Leyendo foto... (puede tardar unos segundos)" : "Tomar/subir foto del recibo (beta, gratis)"}
+            </button>
+            {avisoFoto && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10, textAlign: "center" }}>{avisoFoto}</div>}
+
             <FieldRow label="¿En qué se pagó? *"><input className="hw-input" value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Ej: Factura de luz de la oficina" /></FieldRow>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <FieldRow label="Categoría">
