@@ -3792,6 +3792,32 @@ function Compras({ compras, setCompras, productos, setProductos }) {
 
 const CATEGORIAS_GASTO = ["Servicios (luz, agua, internet)", "Alquiler", "Nómina", "Combustible/Transporte", "Mantenimiento", "Impuestos", "Almuerzo", "Desayuno", "Cena", "Placeres", "Recarga paquetico", "Materiales ferreteros", "Préstamos diversos", "Herrería", "Otro"];
 
+// Los gastos se agrupan en "cortes" mensuales que cierran el día 2 de cada mes:
+// un corte va del día 2 de un mes al día 1 del mes siguiente (inclusive). Esto se
+// calcula al vuelo a partir de la fecha de cada gasto, así que aplica automáticamente
+// a todos los gastos ya registrados, sin tener que tocar nada en la base de datos.
+const DIA_CORTE_GASTOS = 2;
+const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function obtenerPeriodoCorte(fechaStr) {
+  if (!fechaStr) return null;
+  const [y, m, d] = fechaStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  let inicioAnio = y;
+  let inicioMes = m; // 1-12
+  if (d < DIA_CORTE_GASTOS) {
+    inicioMes -= 1;
+    if (inicioMes === 0) { inicioMes = 12; inicioAnio -= 1; }
+  }
+  let finAnio = inicioAnio;
+  let finMes = inicioMes + 1;
+  if (finMes === 13) { finMes = 1; finAnio += 1; }
+  const pad = (n) => String(n).padStart(2, "0");
+  const key = `${inicioAnio}-${pad(inicioMes)}`;
+  const label = `${pad(DIA_CORTE_GASTOS)} ${MESES_CORTO[inicioMes - 1]} – 01 ${MESES_CORTO[finMes - 1]} ${finAnio}`;
+  return { key, label, inicioAnio, inicioMes };
+}
+
 function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -3803,6 +3829,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
   const [nota, setNota] = useState("");
   const [leyendoFoto, setLeyendoFoto] = useState(false);
   const [avisoFoto, setAvisoFoto] = useState("");
+  const [filtroCorte, setFiltroCorte] = useState("todos");
   const fotoInputRef = useRef(null);
 
   // Carga la librería de lectura de texto (Tesseract.js) desde internet la
@@ -3959,8 +3986,22 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
   }
 
   const totalGeneral = gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
-  const esteMes = new Date().toISOString().slice(0, 7);
-  const totalMes = gastos.filter((g) => (g.fecha || "").slice(0, 7) === esteMes).reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  const periodoActual = obtenerPeriodoCorte(new Date().toISOString().slice(0, 10));
+  const totalCorteActual = gastos.filter((g) => obtenerPeriodoCorte(g.fecha)?.key === periodoActual?.key).reduce((s, g) => s + (Number(g.monto) || 0), 0);
+
+  // Agrupa TODOS los gastos (incluyendo los que ya estaban registrados antes de
+  // este cambio) en sus cortes correspondientes, del más reciente al más viejo.
+  const cortesMap = {};
+  gastos.forEach((g) => {
+    const periodo = obtenerPeriodoCorte(g.fecha);
+    if (!periodo) return;
+    if (!cortesMap[periodo.key]) cortesMap[periodo.key] = { ...periodo, total: 0, cantidad: 0 };
+    cortesMap[periodo.key].total += Number(g.monto) || 0;
+    cortesMap[periodo.key].cantidad += 1;
+  });
+  const cortes = Object.values(cortesMap).sort((a, b) => b.key.localeCompare(a.key));
+
+  const gastosFiltrados = filtroCorte === "todos" ? gastos : gastos.filter((g) => obtenerPeriodoCorte(g.fecha)?.key === filtroCorte);
 
   return (
     <div>
@@ -3972,8 +4013,9 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
       <div className="hw-grid" style={{ marginBottom: 16 }}>
         <div className="hw-card">
           <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--red-soft)" }}><Wallet size={17} color="var(--red)" /></div></div>
-          <div className="hw-kpi-label">Gastado este mes</div>
-          <div className="hw-kpi-value">{money(totalMes)}</div>
+          <div className="hw-kpi-label">Gastado en el corte actual</div>
+          <div className="hw-kpi-value">{money(totalCorteActual)}</div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{periodoActual?.label}</div>
         </div>
         <div className="hw-card">
           <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--accent-soft)" }}><Coins size={17} color="var(--accent2)" /></div></div>
@@ -3982,11 +4024,37 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
         </div>
       </div>
 
+      <div className="hw-panel" style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, padding: "12px 14px 4px" }}>Cortes mensuales (cierran el día {DIA_CORTE_GASTOS} de cada mes)</div>
+        <table className="hw-table">
+          <thead><tr><th>Período</th><th>Gastos</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            {cortes.map((c) => (
+              <tr key={c.key}>
+                <td>{c.label} {c.key === periodoActual?.key && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Actual</span>}</td>
+                <td>{c.cantidad}</td>
+                <td>{money(c.total)}</td>
+                <td>
+                  <button className="hw-btn ghost small" onClick={() => setFiltroCorte(c.key)}>Ver gastos</button>
+                </td>
+              </tr>
+            ))}
+            {cortes.length === 0 && <tr><td colSpan={4} className="hw-empty">Aún no hay cortes para mostrar</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
       <div className="hw-panel">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 4px", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700 }}>
+            {filtroCorte === "todos" ? "Todos los gastos" : `Gastos del corte: ${cortesMap[filtroCorte]?.label || filtroCorte}`}
+          </div>
+          {filtroCorte !== "todos" && <button className="hw-btn ghost small" onClick={() => setFiltroCorte("todos")}>Ver todos</button>}
+        </div>
         <table className="hw-table">
           <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Método</th><th>Monto</th><th></th></tr></thead>
           <tbody>
-            {[...gastos].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((g) => (
+            {[...gastosFiltrados].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((g) => (
               <tr key={g.id}>
                 <td>{g.fecha}</td>
                 <td>{g.concepto}</td>
@@ -3999,7 +4067,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
                 </td>
               </tr>
             ))}
-            {gastos.length === 0 && <tr><td colSpan={6} className="hw-empty">Aún no has registrado ningún gasto</td></tr>}
+            {gastosFiltrados.length === 0 && <tr><td colSpan={6} className="hw-empty">Aún no has registrado ningún gasto</td></tr>}
           </tbody>
         </table>
       </div>
