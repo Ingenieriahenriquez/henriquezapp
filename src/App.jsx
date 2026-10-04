@@ -2507,6 +2507,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [tipoComprobante, setTipoComprobante] = useState("Consumidor Final");
   const [ncfManualTexto, setNcfManualTexto] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
+  const [filtroCorte, setFiltroCorte] = useState("todos");
   const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
 
   function abrirNueva() {
@@ -2613,6 +2614,27 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
+  // Igual que en Gastos, las facturas se agrupan en "cortes" mensuales que cierran
+  // el día DIA_CORTE de cada mes, calculado al vuelo desde la fecha de cada
+  // factura — así aplica automáticamente a todas las facturas ya registradas.
+  const periodoActualFact = obtenerPeriodoCorte(new Date().toISOString().slice(0, 10));
+  const facturasValidas = facturas.filter((f) => f.estado !== "Anulada");
+  const totalCorteActualFact = facturasValidas
+    .filter((f) => obtenerPeriodoCorte(f.fecha)?.key === periodoActualFact?.key)
+    .reduce((s, f) => s + calcTotal(f.items, f.aplicaItbis).total, 0);
+
+  const cortesFactMap = {};
+  facturasValidas.forEach((f) => {
+    const periodo = obtenerPeriodoCorte(f.fecha);
+    if (!periodo) return;
+    if (!cortesFactMap[periodo.key]) cortesFactMap[periodo.key] = { ...periodo, total: 0, cantidad: 0 };
+    cortesFactMap[periodo.key].total += calcTotal(f.items, f.aplicaItbis).total;
+    cortesFactMap[periodo.key].cantidad += 1;
+  });
+  const cortesFact = Object.values(cortesFactMap).sort((a, b) => b.key.localeCompare(a.key));
+
+  const facturasFiltradas = filtroCorte === "todos" ? facturas : facturas.filter((f) => obtenerPeriodoCorte(f.fecha)?.key === filtroCorte);
+
   return (
     <div>
       <div className="hw-header">
@@ -2620,11 +2642,46 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
         <button className="hw-btn" onClick={abrirNueva}><Plus size={15} /> Nueva factura</button>
       </div>
 
+      <div className="hw-grid" style={{ marginBottom: 16 }}>
+        <div className="hw-card">
+          <div className="hw-kpi-top"><div className="hw-kpi-icon" style={{ background: "var(--accent-soft)" }}><FileText size={17} color="var(--accent2)" /></div></div>
+          <div className="hw-kpi-label">Facturado en el corte actual</div>
+          <div className="hw-kpi-value">{money(totalCorteActualFact)}</div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{periodoActualFact?.label}</div>
+        </div>
+      </div>
+
+      <div className="hw-panel" style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, padding: "12px 14px 4px" }}>Cortes mensuales (cierran el día {DIA_CORTE} de cada mes)</div>
+        <table className="hw-table">
+          <thead><tr><th>Período</th><th>Facturas</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            {cortesFact.map((c) => (
+              <tr key={c.key}>
+                <td>{c.label} {c.key === periodoActualFact?.key && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Actual</span>}</td>
+                <td>{c.cantidad}</td>
+                <td>{money(c.total)}</td>
+                <td>
+                  <button className="hw-btn ghost small" onClick={() => setFiltroCorte(c.key)}>Ver facturas</button>
+                </td>
+              </tr>
+            ))}
+            {cortesFact.length === 0 && <tr><td colSpan={4} className="hw-empty">Aún no hay cortes para mostrar</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
       <div className="hw-panel">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 4px", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700 }}>
+            {filtroCorte === "todos" ? "Todas las facturas" : `Facturas del corte: ${cortesFactMap[filtroCorte]?.label || filtroCorte}`}
+          </div>
+          {filtroCorte !== "todos" && <button className="hw-btn ghost small" onClick={() => setFiltroCorte("todos")}>Ver todas</button>}
+        </div>
         <table className="hw-table hw-t-facturas">
           <thead><tr><th>NCF</th><th>Cliente</th><th>Fecha</th><th>Método</th><th>Total</th><th>Estado</th><th></th></tr></thead>
           <tbody>
-            {facturas.slice().reverse().map((f) => {
+            {facturasFiltradas.slice().reverse().map((f) => {
               const t = calcTotal(f.items, f.aplicaItbis);
               return (
                 <tr key={f.id}>
@@ -2643,7 +2700,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
                 </tr>
               );
             })}
-            {facturas.length === 0 && <tr><td colSpan={7} className="hw-empty">Sin facturas todavía</td></tr>}
+            {facturasFiltradas.length === 0 && <tr><td colSpan={7} className="hw-empty">Sin facturas todavía</td></tr>}
           </tbody>
         </table>
       </div>
@@ -3796,7 +3853,7 @@ const CATEGORIAS_GASTO = ["Servicios (luz, agua, internet)", "Alquiler", "Nómin
 // un corte va del día 2 de un mes al día 1 del mes siguiente (inclusive). Esto se
 // calcula al vuelo a partir de la fecha de cada gasto, así que aplica automáticamente
 // a todos los gastos ya registrados, sin tener que tocar nada en la base de datos.
-const DIA_CORTE_GASTOS = 2;
+const DIA_CORTE = 2;
 const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function obtenerPeriodoCorte(fechaStr) {
@@ -3805,7 +3862,7 @@ function obtenerPeriodoCorte(fechaStr) {
   if (!y || !m || !d) return null;
   let inicioAnio = y;
   let inicioMes = m; // 1-12
-  if (d < DIA_CORTE_GASTOS) {
+  if (d < DIA_CORTE) {
     inicioMes -= 1;
     if (inicioMes === 0) { inicioMes = 12; inicioAnio -= 1; }
   }
@@ -3814,7 +3871,7 @@ function obtenerPeriodoCorte(fechaStr) {
   if (finMes === 13) { finMes = 1; finAnio += 1; }
   const pad = (n) => String(n).padStart(2, "0");
   const key = `${inicioAnio}-${pad(inicioMes)}`;
-  const label = `${pad(DIA_CORTE_GASTOS)} ${MESES_CORTO[inicioMes - 1]} – 01 ${MESES_CORTO[finMes - 1]} ${finAnio}`;
+  const label = `${pad(DIA_CORTE)} ${MESES_CORTO[inicioMes - 1]} – 01 ${MESES_CORTO[finMes - 1]} ${finAnio}`;
   return { key, label, inicioAnio, inicioMes };
 }
 
@@ -4025,7 +4082,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
       </div>
 
       <div className="hw-panel" style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, padding: "12px 14px 4px" }}>Cortes mensuales (cierran el día {DIA_CORTE_GASTOS} de cada mes)</div>
+        <div style={{ fontWeight: 700, padding: "12px 14px 4px" }}>Cortes mensuales (cierran el día {DIA_CORTE} de cada mes)</div>
         <table className="hw-table">
           <thead><tr><th>Período</th><th>Gastos</th><th>Total</th><th></th></tr></thead>
           <tbody>
