@@ -14,6 +14,7 @@ const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
 const uid = () => crypto.randomUUID();
 const money = (n) => "RD$ " + Number(n || 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyUsd = (n, tasa) => "US$ " + (Number(n || 0) / tasa).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moneyShort = (n) => {
   const v = Number(n || 0);
   if (v >= 1000) return (v / 1000).toFixed(1) + "k";
@@ -697,7 +698,7 @@ function Ajustes({
   cuentasBancarias, movimientosBancarios,
 }) {
   const actual = negocioConfig[0] || BUSINESS;
-  const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "" });
+  const [form, setForm] = useState({ nombre: actual.nombre || "", eslogan: actual.eslogan || "", direccion: actual.direccion || "", telefono: actual.telefono || "", rnc: actual.rnc || "", logo: actual.logo || "", instagram: actual.instagram || "", tasaDolar: actual.tasaDolar || "" });
   const [guardado, setGuardado] = useState(false);
   const [errorLogo, setErrorLogo] = useState("");
   const [confirmacionReset, setConfirmacionReset] = useState("");
@@ -728,7 +729,7 @@ function Ajustes({
   useEffect(() => {
     if (negocioConfig[0] && !cargadoRef.current) {
       const n = negocioConfig[0];
-      setForm({ nombre: n.nombre || "", eslogan: n.eslogan || "", direccion: n.direccion || "", telefono: n.telefono || "", rnc: n.rnc || "", logo: n.logo || "", instagram: n.instagram || "" });
+      setForm({ nombre: n.nombre || "", eslogan: n.eslogan || "", direccion: n.direccion || "", telefono: n.telefono || "", rnc: n.rnc || "", logo: n.logo || "", instagram: n.instagram || "", tasaDolar: n.tasaDolar || "" });
       cargadoRef.current = true;
     }
   }, [negocioConfig]);
@@ -749,9 +750,9 @@ function Ajustes({
 
   function guardar() {
     if (negocioConfig[0]) {
-      setNegocioConfig(negocioConfig.map((n) => (n.id === negocioConfig[0].id ? { ...n, ...form } : n)));
+      setNegocioConfig(negocioConfig.map((n) => (n.id === negocioConfig[0].id ? { ...n, ...form, tasaDolar: Number(form.tasaDolar) || 0 } : n)));
     } else {
-      setNegocioConfig([...negocioConfig, { id: uid(), ...form }]);
+      setNegocioConfig([...negocioConfig, { id: uid(), ...form, tasaDolar: Number(form.tasaDolar) || 0 }]);
     }
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2500);
@@ -796,6 +797,10 @@ function Ajustes({
         <FieldRow label="Instagram (para el código QR de la factura)">
           <input className="hw-input" placeholder="https://instagram.com/tu_usuario" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} />
           <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Si lo llenas, el código QR de las facturas y cotizaciones llevará al cliente directo a tu Instagram en vez del resumen de la factura.</div>
+        </FieldRow>
+        <FieldRow label="Tasa del dólar (RD$ por cada US$1)">
+          <input className="hw-input" type="number" step="0.01" placeholder="Ej. 60.50" value={form.tasaDolar} onChange={(e) => setForm({ ...form, tasaDolar: e.target.value })} />
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Si la llenas, las facturas y cotizaciones mostrarán también el Subtotal, el ITBIS y el Total en dólares usando esta tasa. Déjala vacía para no mostrar dólares. Cámbiala aquí cuando cambie la tasa.</div>
         </FieldRow>
         <FieldRow label="Logo del negocio (opcional)">
           {form.logo && (
@@ -2245,6 +2250,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   if (!doc) return null;
   const totals = calcTotal(doc.items, doc.aplicaItbis);
   const esFactura = doc.tipo === "Factura";
+  const tasaUsd = Number(negocio.tasaDolar) || 0;
   function caracteristicasDe(nombre) {
     const p = productos.find((p) => p.nombre === nombre);
     return (p && p.caracteristicas && p.caracteristicas.trim()) || "";
@@ -2303,6 +2309,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
+              {tasaUsd > 0 && (
+                <>
+                  <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
+                  <div className="hw-paper-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
+                  <div className="hw-paper-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
+                  <div className="hw-paper-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                </>
+              )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Método de pago: {doc.metodo}</div>}
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
               <div className="hw-paper-line" />
@@ -2343,6 +2357,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
+              {tasaUsd > 0 && (
+                <>
+                  <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
+                  <div className="hw-paper-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
+                  <div className="hw-paper-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
+                  <div className="hw-paper-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                </>
+              )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
@@ -2411,6 +2433,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                     <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                     <div className="hwp-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
                     <div className="hwp-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
+                    {tasaUsd > 0 && (
+                <>
+                  <div className="hwp-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
+                  <div className="hwp-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
+                  <div className="hwp-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
+                  <div className="hwp-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                </>
+              )}
                   </div>
                 </div>
                 <div className="hwp-footer">
@@ -2461,6 +2491,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 <div className="hwp-t-total"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                 <div className="hwp-t-total"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
                 <div className="hwp-t-total grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
+                {tasaUsd > 0 && (
+                <>
+                  <div className="hwp-t-total" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
+                  <div className="hwp-t-total"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
+                  <div className="hwp-t-total"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
+                  <div className="hwp-t-total grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                </>
+              )}
                 {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
                 <div className="hwp-t-line" />
                 <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
