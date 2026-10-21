@@ -2085,12 +2085,12 @@ async function generarPDFBlob(nodo, formato) {
   const esMovil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
   const altoCss = Math.max(nodo.scrollHeight || 0, 1);
   const anchoCss = Math.max(nodo.scrollWidth || 0, 1);
-  const maxPixeles = esMovil ? 6_000_000 : 16_000_000;
+  const maxPixeles = esMovil ? 4_000_000 : 16_000_000;
   let escala = esMovil ? 2 : 3;
   while (escala > 1 && anchoCss * altoCss * escala * escala > maxPixeles) escala -= 0.5;
   if (escala < 1) escala = 1;
   const canvas = await html2canvas(nodo, { scale: escala, backgroundColor: "#ffffff" });
-  const imgData = canvas.toDataURL("image/jpeg", 0.92);
+  const imgData = canvas.toDataURL("image/jpeg", esMovil ? 0.85 : 0.92);
   const pxToMm = 25.4 / (96 * escala);
   const imgWidthMm = canvas.width * pxToMm;
   const imgHeightMm = canvas.height * pxToMm;
@@ -2252,13 +2252,9 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
     setPdfListo(false);
     pdfCacheRef.current = null;
     if (!doc?.numero) return;
-    // En celulares NO se arma el PDF por adelantado: hacerlo congela la pantalla.
-    // Se arma solo cuando el usuario toca "Compartir PDF" o "Guardar PDF".
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "")) {
-      setPdfListo(true);
-      return;
-    }
     const t = setTimeout(async () => {
+      // Deja que la pantalla termine de dibujarse antes del trabajo pesado (evita congelarse en celulares).
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
       try {
         const pdf = await generarPDFBlob(printPaperRef.current, formato);
         pdfCacheRef.current = { formato, pdf };
@@ -2270,7 +2266,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
         pdfCacheRef.current = null;
         setPdfListo(true);
       }
-    }, 400);
+    }, 900);
     return () => clearTimeout(t);
   }, [doc?.numero, formato]);
 
