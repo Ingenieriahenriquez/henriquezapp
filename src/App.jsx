@@ -1910,6 +1910,90 @@ function FieldRow({ label, children }) {
   return <div className="hw-field"><label className="hw-label">{label}</label>{children}</div>;
 }
 
+// Selector de cliente con buscador: escribe parte del nombre, negocio, teléfono, RNC/cédula o correo
+// y la lista se filtra al instante. Funciona igual con 10 clientes que con miles.
+function SelectorCliente({ clientes, value, onChange }) {
+  const [texto, setTexto] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const seleccionado = clientes.find((c) => c.id === value);
+  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const soloDigitos = (s) => String(s || "").replace(/\D/g, "");
+  const q = norm(texto).trim();
+  const qDig = soloDigitos(q);
+  const coincidencias = clientes
+    .filter((c) => {
+      if (!q) return true;
+      if ([c.nombre, c.negocio, c.rnc, c.telefono, c.correo].some((x) => norm(x).includes(q))) return true;
+      return qDig.length >= 3 && [c.rnc, c.telefono].some((x) => soloDigitos(x).includes(qDig));
+    })
+    .sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
+  const visibles = coincidencias.slice(0, 50);
+  const etiqueta = (c) => c.nombre + (c.negocio ? " · " + c.negocio : "");
+
+  function elegir(c) {
+    onChange(c.id);
+    setAbierto(false);
+    setTexto("");
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ position: "relative" }}>
+        <input
+          className="hw-input"
+          style={{ paddingRight: seleccionado ? 34 : undefined }}
+          placeholder="Buscar cliente por nombre, teléfono o RNC..."
+          value={abierto ? texto : seleccionado ? etiqueta(seleccionado) : ""}
+          onFocus={() => { setAbierto(true); setTexto(""); }}
+          onBlur={() => setAbierto(false)}
+          onChange={(e) => { setTexto(e.target.value); setAbierto(true); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); if (visibles[0]) elegir(visibles[0]); }
+            if (e.key === "Escape") { setAbierto(false); e.target.blur(); }
+          }}
+        />
+        {seleccionado && !abierto && (
+          <button
+            type="button"
+            title="Quitar cliente"
+            onMouseDown={(e) => { e.preventDefault(); onChange(""); }}
+            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer", color: "var(--muted)", padding: 4, display: "flex" }}
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+      {abierto && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 4px)", zIndex: 60, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(16,24,39,0.14)", maxHeight: 240, overflowY: "auto" }}>
+          {visibles.length === 0 ? (
+            <div style={{ padding: "12px 14px", fontSize: 13, color: "var(--muted)" }}>No se encontró ningún cliente con "{texto}".</div>
+          ) : (
+            visibles.map((c) => (
+              <div
+                key={c.id}
+                onMouseDown={(e) => { e.preventDefault(); elegir(c); }}
+                style={{ padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid var(--line)", background: c.id === value ? "var(--accent-soft)" : "transparent" }}
+              >
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.nombre}{c.negocio ? " · " + c.negocio : ""}</div>
+                {(c.telefono || c.rnc) && (
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }}>
+                    {[c.telefono, c.rnc].filter(Boolean).join("  ·  ")}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+          {coincidencias.length > visibles.length && (
+            <div style={{ padding: "8px 14px", fontSize: 11.5, color: "var(--muted)" }}>
+              Mostrando {visibles.length} de {coincidencias.length}. Escribe más letras para afinar la búsqueda.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemsEditor({ items, setItems, productos, setProductos }) {
   const [nuevoIdx, setNuevoIdx] = useState(null);
   const [np, setNp] = useState({ nombre: "", codigo: "", categoria: "Otro", precio: 0, costo: 0, stock: 0, minimo: 0 });
@@ -2789,10 +2873,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
               </FieldRow>
             )}
             <FieldRow label="Cliente *">
-              <select className="hw-select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-                <option value="">Seleccionar cliente...</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.negocio ? " · " + c.negocio : ""}</option>)}
-              </select>
+              <SelectorCliente clientes={clientes} value={clienteId} onChange={setClienteId} />
             </FieldRow>
             <FieldRow label="Método de pago">
               <select className="hw-select" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
@@ -2939,10 +3020,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
           <div className="hw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="hw-modal-head"><div className="hw-modal-title">{editingId ? "Editar cotización " + cotizaciones.find((c) => c.id === editingId)?.numero : "Nueva cotización · " + nextCot(cotizaciones)}</div><button className="hw-close" onClick={() => setOpen(false)}><X size={18} /></button></div>
             <FieldRow label="Cliente *">
-              <select className="hw-select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-                <option value="">Seleccionar cliente...</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.negocio ? " · " + c.negocio : ""}</option>)}
-              </select>
+              <SelectorCliente clientes={clientes} value={clienteId} onChange={setClienteId} />
             </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
