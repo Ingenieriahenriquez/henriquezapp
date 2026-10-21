@@ -2080,23 +2080,33 @@ async function guardarComoImagen(nodo, nombreArchivo) {
 }
 
 async function generarPDFBlob(nodo, formato) {
-  const canvas = await html2canvas(nodo, { scale: 3, backgroundColor: "#ffffff" });
-  const imgData = canvas.toDataURL("image/png");
-  const pxToMm = 25.4 / (96 * 3);
+  // Escala adaptable: en celulares (poca memoria) se usa una escala menor y se
+  // limita el tamaño total de la imagen para que el navegador no se congele.
+  const esMovil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  const altoCss = Math.max(nodo.scrollHeight || 0, 1);
+  const anchoCss = Math.max(nodo.scrollWidth || 0, 1);
+  const maxPixeles = esMovil ? 6_000_000 : 16_000_000;
+  let escala = esMovil ? 2 : 3;
+  while (escala > 1 && anchoCss * altoCss * escala * escala > maxPixeles) escala -= 0.5;
+  if (escala < 1) escala = 1;
+  const canvas = await html2canvas(nodo, { scale: escala, backgroundColor: "#ffffff" });
+  const imgData = canvas.toDataURL("image/jpeg", 0.92);
+  const pxToMm = 25.4 / (96 * escala);
   const imgWidthMm = canvas.width * pxToMm;
   const imgHeightMm = canvas.height * pxToMm;
 
   let pdf;
   if (formato === "ticket") {
     pdf = new jsPDF({ unit: "mm", format: [imgWidthMm, imgHeightMm] });
-    pdf.addImage(imgData, "PNG", 0, 0, imgWidthMm, imgHeightMm);
+    pdf.addImage(imgData, "JPEG", 0, 0, imgWidthMm, imgHeightMm);
   } else {
     pdf = new jsPDF({ unit: "mm", format: "letter" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const drawWidth = pageWidth - 20;
     const drawHeight = (imgHeightMm * drawWidth) / imgWidthMm;
-    pdf.addImage(imgData, "PNG", 10, 10, drawWidth, drawHeight);
+    pdf.addImage(imgData, "JPEG", 10, 10, drawWidth, drawHeight);
   }
+  canvas.width = 0; canvas.height = 0; // libera memoria del celular
   return pdf;
 }
 
@@ -2119,7 +2129,14 @@ async function compartirComoPDF(nodo, nombreArchivo, formato, titulo, pdfPreGene
     const archivo = new File([blob], nombreArchivo + ".pdf", { type: "application/pdf" });
 
     if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-      await navigator.share({ files: [archivo], title: titulo || nombreArchivo });
+      try {
+        await navigator.share({ files: [archivo], title: titulo || nombreArchivo });
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        // Si el celular bloquea el menú de compartir por haber tardado en armar el PDF, se descarga.
+        pdf.save(nombreArchivo + ".pdf");
+        alert("El PDF se descargó. Búsquelo en sus descargas y compártalo desde ahí (WhatsApp, correo, etc.).");
+      }
     } else {
       // El navegador no soporta compartir archivos directamente (común en computadoras de escritorio):
       // se descarga el PDF para que lo compartas manualmente.
@@ -2235,6 +2252,12 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
     setPdfListo(false);
     pdfCacheRef.current = null;
     if (!doc?.numero) return;
+    // En celulares NO se arma el PDF por adelantado: hacerlo congela la pantalla.
+    // Se arma solo cuando el usuario toca "Compartir PDF" o "Guardar PDF".
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "")) {
+      setPdfListo(true);
+      return;
+    }
     const t = setTimeout(async () => {
       try {
         const pdf = await generarPDFBlob(printPaperRef.current, formato);
@@ -2242,6 +2265,10 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
         setPdfListo(true);
       } catch (e) {
         console.error("No se pudo pre-generar el PDF:", e);
+        // Si falla, no dejamos el botón en "preparando..." para siempre:
+        // se habilita igual y generará el PDF al presionarlo.
+        pdfCacheRef.current = null;
+        setPdfListo(true);
       }
     }, 400);
     return () => clearTimeout(t);
