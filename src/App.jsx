@@ -1452,6 +1452,7 @@ function Panel({ session }) {
           .hwp-ticket .hwp-t-total.grand { font-weight: 700 !important; border-top: 1px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 9.5px !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
+          .hwp-ticket .hw-ticket-logo { max-width: 40mm !important; max-height: 38mm !important; width: auto !important; height: auto !important; margin: 0 auto 2mm !important; filter: grayscale(1) contrast(1.5); }
         }
         #hw-label-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
         .hw-etiqueta-print-item{width:2in;box-sizing:border-box;padding:8px;page-break-after:always;break-after:page;}
