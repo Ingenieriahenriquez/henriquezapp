@@ -1455,7 +1455,7 @@ function Panel({ session }) {
           .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
-          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 48mm !important; max-height: 64mm !important; margin: 0 auto 2mm !important; }
+          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 36mm !important; max-height: 48mm !important; margin: 0 auto 1.5mm !important; }
           .hwp-ticket .hwp-t-h1 { display: none !important; } /* el nombre ya viene dentro del logo */
           .hwp-ticket .hw-logo-termico + .hw-logo-pantalla { display: none !important; }
           .hwp-ticket .hw-logo-pantalla { max-width: 56mm !important; max-height: 24mm !important; }
