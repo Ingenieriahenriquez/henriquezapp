@@ -1276,6 +1276,7 @@ function Panel({ session }) {
         .hwp-logo{max-height:56px;max-width:100px;object-fit:contain;flex-shrink:0;}
         .hw-paper-logo{max-height:34px;max-width:70px;object-fit:contain;flex-shrink:0;}
         .hw-ticket-logo{max-height:44px;max-width:120px;object-fit:contain;display:block;margin:0 auto 4px;}
+        .hw-logo-termico{display:none;}
         .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:32px;color:#101827;line-height:1.15;}
         .hwp-slogan{font-style:italic;font-size:14.5px;color:#6B7280;margin-top:3px;}
         .hwp-contact{font-size:13.5px;color:#374151;margin-top:3px;}
@@ -1445,14 +1446,17 @@ function Panel({ session }) {
           #hw-label-print-target { position: static !important; left: auto !important; display: block !important; }
           /* Impresoras térmicas de tickets: todo en negro puro, letra Arial en negrita y sin grises
              (los grises se imprimen como puntitos y se ven borrosos). El ancho es el área imprimible real de 80 mm. */
-          .hwp-ticket { width: 72mm !important; padding: 2mm 0 !important; margin: 0 auto !important; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700 !important; font-size: 12.5px !important; line-height: 1.3 !important; color: #000 !important; -webkit-font-smoothing: none; }
+          .hwp-ticket { width: 64mm !important; max-width: 64mm !important; overflow-wrap: anywhere; padding: 2mm 0 !important; margin: 0 auto !important; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700 !important; font-size: 12.5px !important; line-height: 1.3 !important; color: #000 !important; -webkit-font-smoothing: none; }
           .hwp-ticket * { color: #000 !important; font-weight: 700 !important; }
           .hwp-ticket .hwp-t-h1 { font-size: 17px !important; font-weight: 800 !important; }
           .hwp-ticket .hwp-t-line { border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total { font-size: 12.5px !important; }
           .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
-          .hwp-ticket img { filter: grayscale(1) contrast(1.6); }
+          .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
+          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 56mm !important; max-height: 24mm !important; margin: 0 auto 2mm !important; }
+          .hwp-ticket .hw-logo-termico + .hw-logo-pantalla { display: none !important; }
+          .hwp-ticket .hw-logo-pantalla { max-width: 56mm !important; max-height: 24mm !important; }
         }
         #hw-label-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
         .hw-etiqueta-print-item{width:2in;box-sizing:border-box;padding:8px;page-break-after:always;break-after:page;}
@@ -2322,6 +2326,41 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const qrRef = useRef(null);
   const printQrRef = useRef(null);
   const pdfCacheRef = useRef(null); // { formato, pdf } ya generado, listo para compartir al instante
+  const [logoTermico, setLogoTermico] = useState("");
+
+  // Versión del logo en blanco y negro puro (sin grises) para impresoras térmicas de tickets,
+  // que solo imprimen puntos negros y por eso borran los detalles finos y los grises.
+  useEffect(() => {
+    if (!negocio.logo) { setLogoTermico(""); return; }
+    let activo = true;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = 480;
+        const h = Math.max(1, Math.round((img.naturalHeight * w) / (img.naturalWidth || 1)));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const d = ctx.getImageData(0, 0, w, h);
+        const px = d.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+          const v = lum < 185 ? 0 : 255;
+          px[i] = px[i + 1] = px[i + 2] = v;
+          px[i + 3] = 255;
+        }
+        ctx.putImageData(d, 0, 0);
+        if (activo) setLogoTermico(c.toDataURL("image/png"));
+      } catch (e) {
+        console.error("No se pudo preparar el logo para la impresora térmica:", e);
+      }
+    };
+    img.src = negocio.logo;
+    return () => { activo = false; };
+  }, [negocio.logo]);
 
   useEffect(() => {
     const contenido = negocio.instagram && negocio.instagram.trim()
@@ -2573,7 +2612,8 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               </div>
             ) : (
               <div className="hwp-ticket" ref={printPaperRef}>
-                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo" />}
+                {logoTermico && <img src={logoTermico} alt="Logo" className="hw-logo-termico" />}
+                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo hw-logo-pantalla" />}
                 <div className="hwp-t-h1">{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
                 <div style={{ textAlign: "center" }}>{negocio.direccion}</div>
@@ -2596,7 +2636,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                   return (
                     <div key={i} style={{ marginBottom: 4 }}>
                       <div>{it.nombre}</div>
-                      {carac && <div style={{ fontSize: 10, color: "#6B7280" }}>{carac}</div>}
+                      {carac && <div style={{ fontSize: 10, color: "#6B7280" }}>{carac.length > 90 ? carac.slice(0, 90).trim() + "…" : carac}</div>}
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span>{it.cantidad} x {money(it.precio)}</span>
                         <span>{money(it.cantidad * it.precio)}</span>
