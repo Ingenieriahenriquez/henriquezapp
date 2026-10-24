@@ -1447,7 +1447,7 @@ function Panel({ session }) {
           #hw-label-print-target { position: static !important; left: auto !important; display: block !important; }
           /* Impresoras térmicas de tickets: todo en negro puro, letra Arial en negrita y sin grises
              (los grises se imprimen como puntitos y se ven borrosos). El ancho es el área imprimible real de 80 mm. */
-          .hwp-ticket { width: 66mm !important; max-width: 66mm !important; overflow-wrap: anywhere; padding: 0 0 2mm 0 !important; margin: 0 auto !important; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700 !important; font-size: 12.5px !important; line-height: 1.3 !important; color: #000 !important; -webkit-font-smoothing: none; }
+          .hwp-ticket { width: 68mm !important; max-width: 68mm !important; overflow-wrap: anywhere; padding: 0 0 2mm 0 !important; margin: 0 auto !important; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700 !important; font-size: 12.5px !important; line-height: 1.3 !important; color: #000 !important; -webkit-font-smoothing: none; }
           .hwp-ticket * { color: #000 !important; font-weight: 700 !important; }
           .hwp-ticket .hwp-t-h1 { font-size: 17px !important; font-weight: 800 !important; }
           .hwp-ticket .hwp-t-line { border-top: 1px dashed #000 !important; }
@@ -1455,7 +1455,7 @@ function Panel({ session }) {
           .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
-          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 66mm !important; max-height: 66mm !important; margin: 0 auto 2mm !important; }
+          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 68mm !important; max-height: 92mm !important; margin: 0 auto 2mm !important; }
           .hwp-ticket .hwp-t-h1 { display: none !important; } /* el nombre ya viene dentro del logo */
           .hwp-ticket .hw-logo-termico + .hw-logo-pantalla { display: none !important; }
           .hwp-ticket .hw-logo-pantalla { max-width: 56mm !important; max-height: 24mm !important; }
