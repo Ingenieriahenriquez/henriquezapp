@@ -1443,15 +1443,14 @@ function Panel({ session }) {
           body > *:not(#hw-print-target):not(#hw-label-print-target) { display: none !important; }
           #hw-print-target { position: static !important; left: auto !important; display: block !important; }
           #hw-label-print-target { position: static !important; left: auto !important; display: block !important; }
-          /* Impresoras térmicas de tickets: todo en negro puro, letra Arial en negrita y sin grises
-             (los grises se imprimen como puntitos y se ven borrosos). El ancho es el área imprimible real de 80 mm. */
-          .hwp-ticket { width: 68mm !important; max-width: 68mm !important; overflow-wrap: anywhere; padding: 0 0 2mm 0 !important; margin: 0 auto !important; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700 !important; font-size: 12.5px !important; line-height: 1.3 !important; color: #000 !important; -webkit-font-smoothing: none; }
-          .hwp-ticket * { color: #000 !important; font-weight: 700 !important; }
-          .hwp-ticket .hwp-t-h1 { font-size: 17px !important; font-weight: 800 !important; }
+          /* Ticket para impresora térmica: mismo diseño de la vista previa (letra, tamaños y logo originales),
+             pero en negro puro y con trazo más firme para que no se vea borroso. Ancho = área imprimible real de la POS-80. */
+          .hwp-ticket { width: 68mm !important; max-width: 68mm !important; overflow-wrap: anywhere; padding: 0 0 2mm 0 !important; margin: 0 auto !important; font-weight: 600 !important; color: #000 !important; }
+          .hwp-ticket * { color: #000 !important; font-weight: 600 !important; }
+          .hwp-ticket .hwp-t-h1 { font-weight: 700 !important; }
           .hwp-ticket .hwp-t-line { border-top: 1px dashed #000 !important; }
-          .hwp-ticket .hwp-t-total { font-size: 12.5px !important; }
-          .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
-          .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
+          .hwp-ticket .hwp-t-total.grand { font-weight: 700 !important; border-top: 1px solid #000 !important; }
+          .hwp-ticket .hwp-t-warranty { font-size: 9.5px !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
         }
         #hw-label-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
