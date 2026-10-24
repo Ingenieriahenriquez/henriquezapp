@@ -9,7 +9,6 @@ import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import logoTermicoImg from "./logo-termico.png"; // logo en blanco y negro puro, hecho para impresoras térmicas
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -1277,7 +1276,6 @@ function Panel({ session }) {
         .hwp-logo{max-height:56px;max-width:100px;object-fit:contain;flex-shrink:0;}
         .hw-paper-logo{max-height:34px;max-width:70px;object-fit:contain;flex-shrink:0;}
         .hw-ticket-logo{max-height:44px;max-width:120px;object-fit:contain;display:block;margin:0 auto 4px;}
-        .hw-logo-termico{display:none;}
         .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:32px;color:#101827;line-height:1.15;}
         .hwp-slogan{font-style:italic;font-size:14.5px;color:#6B7280;margin-top:3px;}
         .hwp-contact{font-size:13.5px;color:#374151;margin-top:3px;}
@@ -1455,10 +1453,6 @@ function Panel({ session }) {
           .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
-          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 36mm !important; max-height: 48mm !important; margin: 0 auto 1.5mm !important; }
-          .hwp-ticket .hwp-t-h1 { display: none !important; } /* el nombre ya viene dentro del logo */
-          .hwp-ticket .hw-logo-termico + .hw-logo-pantalla { display: none !important; }
-          .hwp-ticket .hw-logo-pantalla { max-width: 56mm !important; max-height: 24mm !important; }
         }
         #hw-label-print-target{position:absolute;left:-10000px;top:0;pointer-events:none;}
         .hw-etiqueta-print-item{width:2in;box-sizing:border-box;padding:8px;page-break-after:always;break-after:page;}
@@ -2579,8 +2573,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               </div>
             ) : (
               <div className="hwp-ticket" ref={printPaperRef}>
-                <img src={logoTermicoImg} alt="Logo" className="hw-logo-termico" />
-                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo hw-logo-pantalla" />}
+                {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo" />}
                 <div className="hwp-t-h1">{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
                 <div style={{ textAlign: "center" }}>{negocio.direccion}</div>
