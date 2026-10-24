@@ -9,6 +9,7 @@ import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import logoTermicoImg from "./logo-termico.png"; // logo en blanco y negro puro, hecho para impresoras térmicas
 
 const ITBIS = 0.18;
 const BUSINESS = { nombre: "Ingeniería y Tecnología Henríquez", direccion: "Reparto Oquet, Santiago de los Caballeros, R.D.", telefono: "849-393-6337" };
@@ -1454,7 +1455,8 @@ function Panel({ session }) {
           .hwp-ticket .hwp-t-total.grand { font-size: 15px !important; font-weight: 800 !important; border-top: 2px solid #000 !important; }
           .hwp-ticket .hwp-t-warranty { font-size: 10.5px !important; line-height: 1.35 !important; border-top: 1px dashed #000 !important; }
           .hwp-ticket .hwp-t-total span:last-child { white-space: nowrap; flex-shrink: 0; margin-left: 6px; }
-          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 62mm !important; max-height: 30mm !important; margin: 0 auto 2mm !important; }
+          .hwp-ticket .hw-logo-termico { display: block !important; width: auto !important; height: auto !important; max-width: 66mm !important; max-height: 66mm !important; margin: 0 auto 2mm !important; }
+          .hwp-ticket .hwp-t-h1 { display: none !important; } /* el nombre ya viene dentro del logo */
           .hwp-ticket .hw-logo-termico + .hw-logo-pantalla { display: none !important; }
           .hwp-ticket .hw-logo-pantalla { max-width: 56mm !important; max-height: 24mm !important; }
         }
@@ -2326,68 +2328,6 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const qrRef = useRef(null);
   const printQrRef = useRef(null);
   const pdfCacheRef = useRef(null); // { formato, pdf } ya generado, listo para compartir al instante
-  const [logoTermico, setLogoTermico] = useState("");
-
-  // Versión del logo en blanco y negro puro (sin grises) para impresoras térmicas de tickets,
-  // que solo imprimen puntos negros y por eso borran los detalles finos y los grises.
-  useEffect(() => {
-    if (!negocio.logo) { setLogoTermico(""); return; }
-    let activo = true;
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const w = 640;
-        const h = Math.max(1, Math.round((img.naturalHeight * w) / (img.naturalWidth || 1)));
-        const c = document.createElement("canvas");
-        c.width = w; c.height = h;
-        const ctx = c.getContext("2d");
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        const d = ctx.getImageData(0, 0, w, h);
-        const px = d.data;
-        for (let i = 0; i < px.length; i += 4) {
-          const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-          const v = lum < 200 ? 0 : 255;
-          px[i] = px[i + 1] = px[i + 2] = v;
-          px[i + 3] = 255;
-        }
-        ctx.putImageData(d, 0, 0);
-        // Recorta el espacio en blanco alrededor del logo, así queda pegado arriba y puede imprimirse más grande.
-        let minX = w, minY = h, maxX = -1, maxY = -1;
-        for (let y = 0; y < h; y++) {
-          for (let x = 0; x < w; x++) {
-            if (px[(y * w + x) * 4] === 0) {
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-            }
-          }
-        }
-        let salida = c;
-        if (maxX >= minX && maxY >= minY) {
-          const pad = 4;
-          const sx = Math.max(0, minX - pad);
-          const sy = Math.max(0, minY - pad);
-          const sw = Math.min(w - sx, maxX - minX + 1 + pad * 2);
-          const sh = Math.min(h - sy, maxY - minY + 1 + pad * 2);
-          const c2 = document.createElement("canvas");
-          c2.width = sw; c2.height = sh;
-          const ctx2 = c2.getContext("2d");
-          ctx2.fillStyle = "#fff";
-          ctx2.fillRect(0, 0, sw, sh);
-          ctx2.drawImage(c, sx, sy, sw, sh, 0, 0, sw, sh);
-          salida = c2;
-        }
-        if (activo) setLogoTermico(salida.toDataURL("image/png"));
-      } catch (e) {
-        console.error("No se pudo preparar el logo para la impresora térmica:", e);
-      }
-    };
-    img.src = negocio.logo;
-    return () => { activo = false; };
-  }, [negocio.logo]);
 
   useEffect(() => {
     const contenido = negocio.instagram && negocio.instagram.trim()
@@ -2639,7 +2579,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               </div>
             ) : (
               <div className="hwp-ticket" ref={printPaperRef}>
-                {logoTermico && <img src={logoTermico} alt="Logo" className="hw-logo-termico" />}
+                <img src={logoTermicoImg} alt="Logo" className="hw-logo-termico" />
                 {negocio.logo && <img src={negocio.logo} alt="Logo" className="hw-ticket-logo hw-logo-pantalla" />}
                 <div className="hwp-t-h1">{negocio.nombre}</div>
                 {negocio.eslogan && <div style={{ fontStyle: "italic", fontSize: 10.5, color: "#666", textAlign: "center" }}>{negocio.eslogan}</div>}
