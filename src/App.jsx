@@ -1278,7 +1278,7 @@ function Panel({ session }) {
         .hw-print-tabs{display:flex;gap:8px;margin-bottom:16px;}
         .hw-print-tab{flex:1;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s;}
         .hw-print-tab.active{border-color:var(--accent);color:var(--accent2);background:var(--accent-soft);}
-        .hw-paper-wrap{background:#EAEBEF;border-radius:10px;padding:14px;display:flex;justify-content:center;max-height:70vh;overflow-y:auto;}
+        .hw-paper-wrap{background:#EAEBEF;border-radius:10px;padding:14px;display:flex;justify-content:center;align-items:flex-start;max-height:70vh;overflow-y:auto;}
         .hw-paper-carta{background:#fff;width:100%;max-width:380px;padding:22px 20px;font-size:11.5px;box-shadow:0 4px 16px rgba(16,24,39,0.12);}
         .hw-paper-ticket{background:#fff;width:220px;padding:14px 12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;box-shadow:0 4px 16px rgba(16,24,39,0.12);}
         .hw-paper-h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;}
@@ -2497,6 +2497,9 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const conAvance = Number(doc.avance) > 0 && Number(doc.saldoPendiente) > 0.009;
   const avanceTotalDoc = Number(doc.avance || 0) + Number(doc.saldoPendiente || 0);
   const avancePctTxt = avanceTotalDoc > 0 ? (Math.round((Number(doc.avance) / avanceTotalDoc) * 1000) / 10).toString().replace(/\.0$/, "") : "";
+  const notaImp = esFactura ? String(doc.notaImportante || "").trim() : "";
+  const notaBoxStyle = { border: "1.5px solid #E0791C", borderRadius: 8, padding: "7px 10px", margin: "8px 0", fontSize: "inherit", lineHeight: 1.45, whiteSpace: "pre-wrap", textAlign: "left", color: "#374151" };
+  const notaTitStyle = { color: "#E0791C", fontWeight: 800, fontSize: "1.1em" };
   const avanceBoxStyle = { border: "1.5px solid #E0791C", borderRadius: 8, padding: "6px 10px", margin: "6px 0", fontWeight: 700, color: "#101827" };
   function caracteristicasDe(nombre) {
     const p = productos.find((p) => p.nombre === nombre);
@@ -2567,6 +2570,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 </>
               )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Método de pago: {doc.metodo}</div>}
+              {notaImp && <div style={notaBoxStyle}><span style={notaTitStyle}>Nota importante:</span> {notaImp}</div>}
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center", color: "#777" }}>¡Gracias por su preferencia!</div>
@@ -2624,6 +2628,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 </>
               )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
+              {notaImp && <div style={notaBoxStyle}><span style={notaTitStyle}>Nota importante:</span> {notaImp}</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
               <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
@@ -2703,6 +2708,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               )}
                   </div>
                 </div>
+                {notaImp && <div style={{ ...notaBoxStyle, fontSize: 11.5, margin: "10px 0 0" }}><span style={{ ...notaTitStyle, fontSize: 13.5 }}>Nota importante:</span> {notaImp}</div>}
                 <div className="hwp-footer">
                   <div className="hwp-thanks-line">¡Gracias por su preferencia!</div>
                   <div className="hwp-footer-row">
@@ -2765,6 +2771,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 </>
               )}
                 {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
+                {notaImp && <div style={{ ...notaBoxStyle, fontSize: 10.5, color: "#000", border: "1.5px solid #000" }}><b>Nota importante:</b> {notaImp}</div>}
                 <div className="hwp-t-line" />
                 <div style={{ textAlign: "center" }}>¡Gracias por su preferencia!</div>
                 <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={printQrRef}></canvas></div>
@@ -2823,6 +2830,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [filtroCorte, setFiltroCorte] = useState("todos");
   const [avancePct, setAvancePct] = useState("80");
   const [avanceMontoManual, setAvanceMontoManual] = useState("");
+  const [notaImportante, setNotaImportante] = useState("");
   const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
   // Avance (adelanto): por defecto el 80 % del total, o el monto exacto que se escriba.
   const avanceCalc = Math.round(totals.total * (Number(avancePct) || 0)) / 100;
@@ -2847,6 +2855,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setAvancePct("80");
     setAvanceMontoManual("");
     setAplicaItbis(true);
+    setNotaImportante("");
     setTipoComprobante("Consumidor Final");
     setNcfManualTexto("");
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
@@ -2859,6 +2868,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setMetodo(f.metodo);
     setEstadoPago(f.estado === "Pendiente" ? "Pendiente" : f.estado === "Abonada" ? "Abonada" : "Pagada");
     setAplicaItbis(f.aplicaItbis !== false);
+    setNotaImportante(f.notaImportante || "");
     setTipoComprobante(f.tipoComprobante || "Consumidor Final");
     setNcfManualTexto(f.ncfManual ? f.ncf : "");
     setItems(f.items);
@@ -2877,7 +2887,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
       const estadoFinal = original?.estado === "Anulada" || original?.estado === "Abonada" ? original.estado : estadoPago;
       setFacturas(facturas.map((f) => (f.id === editingId ? {
         ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: itemsFinales, metodo,
-        estado: estadoFinal, aplicaItbis,
+        estado: estadoFinal, aplicaItbis, notaImportante: notaImportante.trim(),
         tipoComprobante, ncfManual: esManual, ncf: esManual ? ncfManualTexto.trim() : f.ncf,
       } : f)));
       // Mantiene sincronizado el movimiento automático en Bancos: lo agrega si ahora
@@ -2915,7 +2925,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
       }
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis,
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis, notaImportante: notaImportante.trim(),
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
@@ -2974,7 +2984,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     const totalF = calcTotal(f.items, f.aplicaItbis).total;
     const pagadoF = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
     const conAvanceF = (f.estado === "Pendiente" || f.estado === "Abonada") && pagadoF > 0 && totalF - pagadoF > 0.009;
-    setPrintDoc({ tipo: "Factura", avance: conAvanceF ? pagadoF : 0, saldoPendiente: conAvanceF ? totalF - pagadoF : 0, numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn, atendidoPor: nombreUsuario(miEmail) });
+    setPrintDoc({ tipo: "Factura", avance: conAvanceF ? pagadoF : 0, saldoPendiente: conAvanceF ? totalF - pagadoF : 0, numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, notaImportante: f.notaImportante, creadoEn: f.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappFactura(f) {
@@ -3149,6 +3159,9 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
                 <option value="con">Con ITBIS (18%)</option>
                 <option value="sin">Sin ITBIS (exento)</option>
               </select>
+            </FieldRow>
+            <FieldRow label="Nota importante (opcional, sale en la factura)">
+              <textarea className="hw-input" rows={3} value={notaImportante} onChange={(e) => setNotaImportante(e.target.value)} placeholder="Ej: El cliente entregó RD$ 25,000.00 como avance; el resto se acordó pagar en la entrega." />
             </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
