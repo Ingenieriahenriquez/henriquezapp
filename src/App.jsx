@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard, Camera } from "lucide-react";
@@ -1295,7 +1294,7 @@ function Panel({ session }) {
         .hw-paper-logo{max-height:34px;max-width:70px;object-fit:contain;flex-shrink:0;}
         .hw-ticket-logo{max-height:44px;max-width:120px;object-fit:contain;display:block;margin:0 auto 4px;}
         .hw-logo-termico{display:none;}
-        .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:32px;color:#101827;line-height:1.15;}
+        .hwp-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16.5px;color:#101827;line-height:1.2;white-space:nowrap;}
         .hwp-slogan{font-style:italic;font-size:14.5px;color:#6B7280;margin-top:3px;}
         .hwp-contact{font-size:13.5px;color:#374151;margin-top:3px;}
         .hwp-doctype{text-align:right;flex-shrink:0;}
@@ -1318,8 +1317,9 @@ function Panel({ session }) {
         .hwp-total-row.grand{font-weight:700;font-size:15.5px;border-top:1.5px solid #101827;margin-top:4px;padding-top:6px;color:#101827;}
         .hwp-footer{border-top:1px dashed #B9BDC7;padding-top:10px;page-break-inside:avoid;}
         .hwp-thanks-line{text-align:center;font-style:italic;color:#6B7280;font-size:12.5px;}
-        .hwp-qr-wrap{display:flex;justify-content:center;margin:8px 0;}
-        .hwp-warranty{border:1.5px solid #E0791C;border-radius:8px;margin-top:8px;padding:9px 14px;font-size:10.5px;line-height:1.5;color:#374151;text-align:center;page-break-inside:avoid;}
+        .hwp-footer-row{display:flex;gap:14px;align-items:center;margin-top:8px;}
+        .hwp-qr-wrap{display:flex;justify-content:center;margin:0;flex-shrink:0;}
+        .hwp-warranty{flex:1;border:1.5px solid #E0791C;border-radius:8px;padding:8px 12px;font-size:10px;line-height:1.45;color:#374151;text-align:left;page-break-inside:avoid;}
         .hwp-warranty b{color:#E0791C;font-weight:800;font-size:13.5px;letter-spacing:.02em;}
         .hwp-footer-text{font-size:9px;color:#9AA1AC;text-align:center;margin-top:6px;}
         .hwp-ticket{width:80mm;box-sizing:border-box;padding:4mm;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#151A24;}
@@ -2228,6 +2228,16 @@ async function generarPDFBlob(nodo, formato) {
     const mmPorPx = drawWidth / canvas.width;
     const altoPaginaPx = Math.floor((pageHeight - margen * 2) / mmPorPx);
     const ctx = canvas.getContext("2d");
+    const altoTotalMm = canvas.height * mmPorPx;
+    const altoUtilMm = pageHeight - margen * 2;
+    if (altoTotalMm <= altoUtilMm * 1.18) {
+      // Cabe en una hoja con una pequeña reducción (hasta ~15 %): se deja todo en una sola página.
+      const k = Math.min(1, altoUtilMm / altoTotalMm);
+      const anchoMm = drawWidth * k;
+      pdf.addImage(canvas.toDataURL("image/jpeg", calidad), "JPEG", (pageWidth - anchoMm) / 2, margen, anchoMm, altoTotalMm * k);
+      canvas.width = 0; canvas.height = 0;
+      return pdf;
+    }
     let y = 0;
     let primera = true;
     while (y < canvas.height) {
@@ -2557,11 +2567,13 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               {!esFactura && <div style={{ marginTop: 6 }}>Validez de la cotización: 15 días</div>}
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center", color: "#777" }}>¡Gracias por su preferencia!</div>
-              <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
-              <div style={{ border: "1.5px solid #E0791C", borderRadius: 8, padding: "8px 10px", marginTop: 10, fontSize: 10.5, lineHeight: 1.5, textAlign: "center", color: "#374151" }}>
-                <b style={{ color: "#E0791C", fontSize: 13, fontWeight: 800 }}>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
-                Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
-                Gracias por su comprensión.
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
+                <div style={{ flexShrink: 0 }}><canvas ref={qrRef}></canvas></div>
+                <div style={{ flex: 1, border: "1.5px solid #E0791C", borderRadius: 8, padding: "7px 9px", fontSize: 9.5, lineHeight: 1.45, textAlign: "left", color: "#374151" }}>
+                  <b style={{ color: "#E0791C", fontSize: 12, fontWeight: 800 }}>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
+                  Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
+                  Gracias por su comprensión.
+                </div>
               </div>
             </div>
           ) : (
@@ -2690,11 +2702,13 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 </div>
                 <div className="hwp-footer">
                   <div className="hwp-thanks-line">¡Gracias por su preferencia!</div>
-                  <div className="hwp-qr-wrap"><canvas ref={printQrRef}></canvas></div>
-                  <div className="hwp-warranty">
-                    <b>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
-                    Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
-                    Gracias por su comprensión.
+                  <div className="hwp-footer-row">
+                    <div className="hwp-qr-wrap"><canvas ref={printQrRef}></canvas></div>
+                    <div className="hwp-warranty">
+                      <b>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
+                      Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
+                      Gracias por su comprensión.
+                    </div>
                   </div>
                   <div className="hwp-footer-text">Documento generado por {negocio.nombre}</div>
                 </div>
