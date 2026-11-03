@@ -2495,6 +2495,9 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const esFactura = doc.tipo === "Factura";
   const tasaUsd = Number(negocio.tasaDolar) || 0;
   const conAvance = Number(doc.avance) > 0 && Number(doc.saldoPendiente) > 0.009;
+  const avanceTotalDoc = Number(doc.avance || 0) + Number(doc.saldoPendiente || 0);
+  const avancePctTxt = avanceTotalDoc > 0 ? (Math.round((Number(doc.avance) / avanceTotalDoc) * 1000) / 10).toString().replace(/\.0$/, "") : "";
+  const avanceBoxStyle = { border: "1.5px solid #E0791C", borderRadius: 8, padding: "6px 10px", margin: "6px 0", fontWeight: 700, color: "#101827" };
   function caracteristicasDe(nombre) {
     const p = productos.find((p) => p.nombre === nombre);
     return (p && p.caracteristicas && p.caracteristicas.trim()) || "";
@@ -2553,7 +2556,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hw-paper-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -2610,7 +2613,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hw-paper-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -2688,7 +2691,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                     <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                     <div className="hwp-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
                     <div className="hwp-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hwp-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hwp-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hwp-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hwp-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
                     {tasaUsd > 0 && (
                 <>
                   <div className="hwp-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
