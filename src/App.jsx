@@ -2763,7 +2763,16 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   // Avance (adelanto): por defecto el 80 % del total, o el monto exacto que se escriba.
   const avanceCalc = Math.round(totals.total * (Number(avancePct) || 0)) / 100;
   const montoAvanceNum = avanceMontoManual !== "" ? Number(avanceMontoManual) || 0 : avanceCalc;
-  const avanceMontoMostrado = avanceMontoManual !== "" ? avanceMontoManual : (avanceCalc ? String(avanceCalc) : "");
+  const avanceMontoMostrado = avanceMontoManual !== "" ? avanceMontoManual : (avanceCalc ? avanceCalc.toFixed(2) : "");
+  // Muestra el número con comas de miles (61,682.85) mientras se escribe.
+  const fmtMonto = (raw) => {
+    if (raw === "" || raw == null) return "";
+    const [ent, dec] = String(raw).split(".");
+    const entFmt = (ent || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return dec !== undefined ? entFmt + "." + dec : entFmt;
+  };
+  const pctReal = totals.total > 0 ? Math.round((montoAvanceNum / totals.total) * 10000) / 100 : 0;
+  const pctMostrado = avanceMontoManual !== "" ? String(pctReal) : avancePct;
   const pagadoEdicion = editingId ? abonosPagos.filter((a) => a.facturaId === editingId).reduce((s, a) => s + Number(a.monto), 0) : 0;
 
   function abrirNueva() {
@@ -3034,13 +3043,25 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
             {estadoPago === "Abonada" && !editingId && (
               <FieldRow label="Avance (adelanto)">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={avancePct} onChange={(e) => { setAvancePct(e.target.value); setAvanceMontoManual(""); }} />
+                  <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={pctMostrado} onChange={(e) => { setAvancePct(e.target.value); setAvanceMontoManual(""); }} />
                   <span>%</span>
-                  <input className="hw-input" type="number" min="0" style={{ flex: 1, minWidth: 120 }} placeholder="Monto del avance" value={avanceMontoMostrado} onChange={(e) => setAvanceMontoManual(e.target.value)} />
+                  <span style={{ fontWeight: 600 }}>RD$</span>
+                  <input
+                    className="hw-input" type="text" inputMode="decimal" style={{ flex: 1, minWidth: 120 }} placeholder="Monto del avance"
+                    value={fmtMonto(avanceMontoMostrado)}
+                    onChange={(e) => {
+                      let v = e.target.value.replace(/[^\d.]/g, "");
+                      const i = v.indexOf(".");
+                      if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, "").slice(0, 2);
+                      setAvanceMontoManual(v);
+                    }}
+                  />
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
-                  Avance a total de factura: {money(montoAvanceNum)} · Saldo pendiente: {money(Math.max(totals.total - montoAvanceNum, 0))}. Se registra con el método de pago de arriba.
+                <div style={{ marginTop: 8, padding: "9px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+                  <div><b>El cliente paga ahora:</b> {money(montoAvanceNum)} ({pctReal} %)</div>
+                  <div><b>Queda pendiente:</b> {money(Math.max(totals.total - montoAvanceNum, 0))} ({Math.max(Math.round((100 - pctReal) * 100) / 100, 0)} %)</div>
                 </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>El avance se registra con el método de pago de arriba.</div>
               </FieldRow>
             )}
             {estadoPago === "Abonada" && editingId && (
