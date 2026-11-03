@@ -291,7 +291,7 @@ function Reportes({ facturas, abonosPagos, productos = [] }) {
 
   const totalCobrado = enRango.reduce((s, f) => {
     const total = calcTotal(f.items, f.aplicaItbis).total;
-    if (f.estado === "Pendiente") {
+    if (f.estado === "Pendiente" || f.estado === "Abonada") {
       const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s2, a) => s2 + Number(a.monto), 0);
       return s + Math.min(pagado, total);
     }
@@ -308,7 +308,7 @@ function Reportes({ facturas, abonosPagos, productos = [] }) {
   }, [enRango]);
 
   const pendientesCobro = useMemo(() => {
-    return facturas.filter((f) => f.estado !== "Anulada").map((f) => {
+    return facturas.filter((f) => f.estado === "Pendiente" || f.estado === "Abonada").map((f) => {
       const total = calcTotal(f.items, f.aplicaItbis).total;
       const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
       return { ...f, total, pagado, pendiente: total - pagado };
@@ -507,14 +507,14 @@ function Graficas({ facturas, cotizaciones, productos }) {
   );
 }
 
-function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
+function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const [facturaId, setFacturaId] = useState("");
   const [monto, setMonto] = useState("");
   const [metodo, setMetodo] = useState("Efectivo");
   const [nota, setNota] = useState("");
 
   const pendientes = facturas
-    .filter((f) => f.estado !== "Anulada")
+    .filter((f) => f.estado === "Pendiente" || f.estado === "Abonada")
     .map((f) => {
       const total = calcTotal(f.items, f.aplicaItbis).total;
       const pagado = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
@@ -525,10 +525,27 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos }) {
   function registrarAbono() {
     const f = pendientes.find((f) => f.id === facturaId);
     if (!f || !monto) return;
-    const nuevoAbono = { id: uid(), facturaId: f.id, monto: Number(monto), fecha: new Date().toISOString().slice(0, 10), metodo, nota };
+    const montoNum = Number(monto);
+    if (!(montoNum > 0)) { alert("Escribe un monto mayor que cero."); return; }
+    if (montoNum > f.pendiente + 0.01) { alert("El monto es mayor que el saldo pendiente de esta factura (" + money(f.pendiente) + ")."); return; }
+    const nuevoAbono = { id: uid(), facturaId: f.id, monto: montoNum, fecha: new Date().toISOString().slice(0, 10), metodo, nota };
     setAbonosPagos([...abonosPagos, nuevoAbono]);
-    if (f.pagado + Number(monto) >= f.total - 0.01) {
+    if (f.pagado + montoNum >= f.total - 0.01) {
       setFacturas(facturas.map((x) => (x.id === f.id ? { ...x, estado: "Pagada" } : x)));
+    } else if (f.estado === "Pendiente") {
+      setFacturas(facturas.map((x) => (x.id === f.id ? { ...x, estado: "Abonada" } : x)));
+    }
+    // Si el abono es por transferencia, entra solo a la cuenta bancaria predeterminada.
+    if (metodo === "Transferencia" && setMovimientosBancarios) {
+      const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
+      if (cuentaPred) {
+        setMovimientosBancarios([...movimientosBancarios, {
+          id: uid(), cuentaId: cuentaPred.id, tipo: "Abono de factura (transferencia)", monto: montoNum,
+          descripcion: `Abono factura ${f.ncf} · ${f.clienteNombre}`, fechaHora: new Date().toISOString(), facturaId: f.id,
+        }]);
+      } else {
+        alert("El abono se guardó, pero no se pudo registrar en Bancos porque todavía no tienes ninguna cuenta bancaria creada.");
+      }
     }
     setFacturaId("");
     setMonto("");
@@ -1519,7 +1536,8 @@ function Panel({ session }) {
         </div>
         <div style={{ display: tab === "facturacion" ? "block" : "none" }}>
           <Facturacion facturas={facturas} setFacturas={setFacturas} clientes={clientes} productos={productos} setProductos={setProductos} negocio={negocio} miEmail={miEmail}
-            cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
+            cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios}
+            abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} />
         </div>
         <div style={{ display: tab === "cotizaciones" ? "block" : "none" }}>
           <Cotizaciones cotizaciones={cotizaciones} setCotizaciones={setCotizaciones} clientes={clientes} productos={productos} setProductos={setProductos} setFacturas={setFacturas} setTab={setTab} negocio={negocio} miEmail={miEmail} />
@@ -1542,7 +1560,8 @@ function Panel({ session }) {
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
-        <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos} /></div>
+        <div style={{ display: tab === "abonos" ? "block" : "none" }}><Abonos facturas={facturas} setFacturas={setFacturas} abonosPagos={abonosPagos} setAbonosPagos={setAbonosPagos}
+          cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} /></div>
         <div style={{ display: tab === "graficas" ? "block" : "none" }}><Graficas facturas={facturas} cotizaciones={cotizaciones} productos={productos} /></div>
         <div style={{ display: tab === "caja" ? "block" : "none" }}><Caja sesiones={cajaSesiones} setSesiones={setCajaSesiones} movimientos={cajaMovimientos} setMovimientos={setCajaMovimientos} facturas={facturas} miEmail={miEmail} /></div>
         <div style={{ display: tab === "bancos" ? "block" : "none" }}><Bancos cuentas={cuentasBancarias} setCuentas={setCuentasBancarias} movimientos={movimientosBancarios} setMovimientos={setMovimientosBancarios} /></div>
@@ -2433,6 +2452,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const totals = calcTotal(doc.items, doc.aplicaItbis);
   const esFactura = doc.tipo === "Factura";
   const tasaUsd = Number(negocio.tasaDolar) || 0;
+  const conAvance = Number(doc.avance) > 0 && Number(doc.saldoPendiente) > 0.009;
   function caracteristicasDe(nombre) {
     const p = productos.find((p) => p.nombre === nombre);
     return (p && p.caracteristicas && p.caracteristicas.trim()) || "";
@@ -2491,12 +2511,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
+              {conAvance && (<><div className="hw-paper-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
                   <div className="hw-paper-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
                   <div className="hw-paper-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
                   <div className="hw-paper-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                  {conAvance && (<><div className="hw-paper-total-row"><span>Avance US$</span><span>{moneyUsd(doc.avance, tasaUsd)}</span></div><div className="hw-paper-total-row"><span>Saldo pendiente US$</span><span>{moneyUsd(doc.saldoPendiente, tasaUsd)}</span></div></>)}
                 </>
               )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Método de pago: {doc.metodo}</div>}
@@ -2539,12 +2561,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
+              {conAvance && (<><div className="hw-paper-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
                   <div className="hw-paper-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
                   <div className="hw-paper-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
                   <div className="hw-paper-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                  {conAvance && (<><div className="hw-paper-total-row"><span>Avance US$</span><span>{moneyUsd(doc.avance, tasaUsd)}</span></div><div className="hw-paper-total-row"><span>Saldo pendiente US$</span><span>{moneyUsd(doc.saldoPendiente, tasaUsd)}</span></div></>)}
                 </>
               )}
               {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
@@ -2615,12 +2639,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                     <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                     <div className="hwp-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
                     <div className="hwp-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
+              {conAvance && (<><div className="hwp-total-row"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hwp-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
                     {tasaUsd > 0 && (
                 <>
                   <div className="hwp-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
                   <div className="hwp-total-row"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
                   <div className="hwp-total-row"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
                   <div className="hwp-total-row grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                  {conAvance && (<><div className="hwp-total-row"><span>Avance US$</span><span>{moneyUsd(doc.avance, tasaUsd)}</span></div><div className="hwp-total-row"><span>Saldo pendiente US$</span><span>{moneyUsd(doc.saldoPendiente, tasaUsd)}</span></div></>)}
                 </>
               )}
                   </div>
@@ -2674,12 +2700,14 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 <div className="hwp-t-total"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                 <div className="hwp-t-total"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
                 <div className="hwp-t-total grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
+              {conAvance && (<><div className="hwp-t-total"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hwp-t-total" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
                 {tasaUsd > 0 && (
                 <>
                   <div className="hwp-t-total" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
                   <div className="hwp-t-total"><span>Subtotal US$</span><span>{moneyUsd(totals.sub, tasaUsd)}</span></div>
                   <div className="hwp-t-total"><span>ITBIS US$</span><span>{moneyUsd(totals.itbis, tasaUsd)}</span></div>
                   <div className="hwp-t-total grand"><span>Total US$</span><span>{moneyUsd(totals.total, tasaUsd)}</span></div>
+                  {conAvance && (<><div className="hwp-t-total"><span>Avance US$</span><span>{moneyUsd(doc.avance, tasaUsd)}</span></div><div className="hwp-t-total"><span>Saldo pendiente US$</span><span>{moneyUsd(doc.saldoPendiente, tasaUsd)}</span></div></>)}
                 </>
               )}
                 {esFactura && doc.metodo && <div style={{ marginTop: 6 }}>Pago: {doc.metodo}</div>}
@@ -2717,7 +2745,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   );
 }
 
-function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
+function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios, abonosPagos = [], setAbonosPagos }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [printDoc, setPrintDoc] = useState(null);
@@ -2729,13 +2757,22 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
   const [ncfManualTexto, setNcfManualTexto] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
   const [filtroCorte, setFiltroCorte] = useState("todos");
+  const [avancePct, setAvancePct] = useState("80");
+  const [avanceMontoManual, setAvanceMontoManual] = useState("");
   const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
+  // Avance (adelanto): por defecto el 80 % del total, o el monto exacto que se escriba.
+  const avanceCalc = Math.round(totals.total * (Number(avancePct) || 0)) / 100;
+  const montoAvanceNum = avanceMontoManual !== "" ? Number(avanceMontoManual) || 0 : avanceCalc;
+  const avanceMontoMostrado = avanceMontoManual !== "" ? avanceMontoManual : (avanceCalc ? String(avanceCalc) : "");
+  const pagadoEdicion = editingId ? abonosPagos.filter((a) => a.facturaId === editingId).reduce((s, a) => s + Number(a.monto), 0) : 0;
 
   function abrirNueva() {
     setEditingId(null);
     setClienteId("");
     setMetodo("Transferencia");
     setEstadoPago("Pagada");
+    setAvancePct("80");
+    setAvanceMontoManual("");
     setAplicaItbis(true);
     setTipoComprobante("Consumidor Final");
     setNcfManualTexto("");
@@ -2747,7 +2784,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     setEditingId(f.id);
     setClienteId(f.clienteId || clientes.find((c) => c.nombre === f.clienteNombre)?.id || "");
     setMetodo(f.metodo);
-    setEstadoPago(f.estado === "Pendiente" ? "Pendiente" : "Pagada");
+    setEstadoPago(f.estado === "Pendiente" ? "Pendiente" : f.estado === "Abonada" ? "Abonada" : "Pagada");
     setAplicaItbis(f.aplicaItbis !== false);
     setTipoComprobante(f.tipoComprobante || "Consumidor Final");
     setNcfManualTexto(f.ncfManual ? f.ncf : "");
@@ -2764,7 +2801,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     if (editingId) {
       const original = facturas.find((f) => f.id === editingId);
       const itemsFinales = items.filter((i) => i.nombre);
-      const estadoFinal = original?.estado === "Anulada" ? original.estado : estadoPago;
+      const estadoFinal = original?.estado === "Anulada" || original?.estado === "Abonada" ? original.estado : estadoPago;
       setFacturas(facturas.map((f) => (f.id === editingId ? {
         ...f, clienteId: cliente.id, clienteNombre: cliente.nombre, items: itemsFinales, metodo,
         estado: estadoFinal, aplicaItbis,
@@ -2775,8 +2812,8 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
       // monto cambió, o lo quita si ya no corresponde (cambió el método o el estado).
       if (setMovimientosBancarios) {
         const totalFactura = calcTotal(itemsFinales, aplicaItbis).total;
-        const movExistente = movimientosBancarios.find((m) => m.facturaId === editingId);
-        const corresponde = metodo === "Transferencia" && estadoFinal === "Pagada";
+        const movExistente = movimientosBancarios.find((m) => m.facturaId === editingId && m.tipo === "Pago de factura (transferencia)");
+        const corresponde = metodo === "Transferencia" && estadoFinal === "Pagada" && !abonosPagos.some((a) => a.facturaId === editingId);
         if (corresponde && !movExistente) {
           const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
           if (cuentaPred) {
@@ -2794,12 +2831,37 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
         }
       }
     } else {
+      let montoAvance = 0;
+      if (estadoPago === "Abonada") {
+        const totalAv = calcTotal(items.filter((i) => i.nombre), aplicaItbis).total;
+        montoAvance = montoAvanceNum;
+        if (!(montoAvance > 0) || montoAvance >= totalAv - 0.009) {
+          alert("El avance debe ser mayor que cero y menor que el total de la factura (" + money(totalAv) + ").");
+          return;
+        }
+      }
       const nueva = {
         id: uid(), ncf: esManual ? ncfManualTexto.trim() : nextNcf(facturas), clienteId: cliente.id, clienteNombre: cliente.nombre,
         fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), metodo, estado: estadoPago, abono: 0, aplicaItbis,
         tipoComprobante, ncfManual: esManual,
       };
       setFacturas([...facturas, nueva]);
+      // Avance (adelanto): se registra como el primer abono de la factura. Si fue por transferencia,
+      // también entra a la cuenta bancaria predeterminada.
+      if (estadoPago === "Abonada" && setAbonosPagos) {
+        setAbonosPagos([...abonosPagos, { id: uid(), facturaId: nueva.id, monto: montoAvance, fecha: new Date().toISOString().slice(0, 10), metodo, nota: "Avance inicial" }]);
+        if (metodo === "Transferencia" && setMovimientosBancarios) {
+          const cuentaAv = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
+          if (cuentaAv) {
+            setMovimientosBancarios([...movimientosBancarios, {
+              id: uid(), cuentaId: cuentaAv.id, tipo: "Abono de factura (transferencia)", monto: montoAvance,
+              descripcion: `Avance factura ${nueva.ncf} · ${nueva.clienteNombre}`, fechaHora: new Date().toISOString(), facturaId: nueva.id,
+            }]);
+          } else {
+            alert("La factura y el avance se guardaron, pero no se pudo registrar en Bancos porque todavía no tienes ninguna cuenta bancaria creada.");
+          }
+        }
+      }
       // Si se paga por transferencia y ya está pagada, se abona sola a la cuenta
       // bancaria marcada como predeterminada — así no hay que registrarlo dos veces.
       if (metodo === "Transferencia" && estadoPago === "Pagada" && setMovimientosBancarios) {
@@ -2825,13 +2887,19 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
 
   function abrirImpresion(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId);
-    setPrintDoc({ tipo: "Factura", numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn, atendidoPor: nombreUsuario(miEmail) });
+    const totalF = calcTotal(f.items, f.aplicaItbis).total;
+    const pagadoF = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
+    const conAvanceF = (f.estado === "Pendiente" || f.estado === "Abonada") && pagadoF > 0 && totalF - pagadoF > 0.009;
+    setPrintDoc({ tipo: "Factura", avance: conAvanceF ? pagadoF : 0, saldoPendiente: conAvanceF ? totalF - pagadoF : 0, numero: f.ncf, fecha: f.fecha, clienteNombre: f.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: f.items, metodo: f.metodo, tipoComprobante: f.tipoComprobante, aplicaItbis: f.aplicaItbis, creadoEn: f.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappFactura(f) {
     const cliente = clientes.find((c) => c.id === f.clienteId) || clientes.find((c) => c.nombre === f.clienteNombre);
     const total = calcTotal(f.items, f.aplicaItbis).total;
-    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${f.fecha}\nTotal: ${money(total)}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
+    const pagadoW = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
+    const avanceTxt = (f.estado === "Pendiente" || f.estado === "Abonada") && pagadoW > 0 && total - pagadoW > 0.009
+      ? `\nAvance a total de factura: ${money(pagadoW)}\nSaldo pendiente: ${money(total - pagadoW)}` : "";
+    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${f.fecha}\nTotal: ${money(total)}${avanceTxt}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -2960,8 +3028,26 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
               <select className="hw-select" value={estadoPago} onChange={(e) => setEstadoPago(e.target.value)}>
                 <option value="Pagada">Pagada (de contado)</option>
                 <option value="Pendiente">Pendiente (a crédito)</option>
+                {(!editingId || estadoPago === "Abonada") && <option value="Abonada">{editingId ? "Abonada (con avance)" : "Con avance (adelanto)"}</option>}
               </select>
             </FieldRow>
+            {estadoPago === "Abonada" && !editingId && (
+              <FieldRow label="Avance (adelanto)">
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={avancePct} onChange={(e) => { setAvancePct(e.target.value); setAvanceMontoManual(""); }} />
+                  <span>%</span>
+                  <input className="hw-input" type="number" min="0" style={{ flex: 1, minWidth: 120 }} placeholder="Monto del avance" value={avanceMontoMostrado} onChange={(e) => setAvanceMontoManual(e.target.value)} />
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                  Avance a total de factura: {money(montoAvanceNum)} · Saldo pendiente: {money(Math.max(totals.total - montoAvanceNum, 0))}. Se registra con el método de pago de arriba.
+                </div>
+              </FieldRow>
+            )}
+            {estadoPago === "Abonada" && editingId && (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
+                Avance pagado: {money(pagadoEdicion)} · Saldo pendiente: {money(Math.max(totals.total - pagadoEdicion, 0))}. Para registrar más pagos use la opción <b>Abonos</b>.
+              </div>
+            )}
             <FieldRow label="ITBIS">
               <select className="hw-select" value={aplicaItbis ? "con" : "sin"} onChange={(e) => setAplicaItbis(e.target.value === "con")}>
                 <option value="con">Con ITBIS (18%)</option>
@@ -3469,7 +3555,7 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
   );
 }
 
-const TIPOS_MOV_BANCO_ENTRADA = ["Depósito", "Transferencia recibida", "Pago de factura (transferencia)"];
+const TIPOS_MOV_BANCO_ENTRADA = ["Depósito", "Transferencia recibida", "Pago de factura (transferencia)", "Abono de factura (transferencia)"];
 
 function esCuentaCredito(cuenta) {
   return cuenta?.tipo === "Crédito";
