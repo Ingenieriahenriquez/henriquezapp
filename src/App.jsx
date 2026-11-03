@@ -1318,8 +1318,8 @@ function Panel({ session }) {
         .hwp-footer{border-top:1px dashed #B9BDC7;padding-top:10px;page-break-inside:avoid;}
         .hwp-thanks-line{text-align:center;font-style:italic;color:#6B7280;font-size:12.5px;}
         .hwp-qr-wrap{display:flex;justify-content:center;margin:8px 0;}
-        .hwp-warranty{border-top:1px dashed #B9BDC7;margin-top:4px;padding-top:8px;font-size:9.5px;line-height:1.5;color:#4B5563;text-align:center;}
-        .hwp-warranty b{color:#101827;}
+        .hwp-warranty{border:1.5px solid #E0791C;border-radius:8px;margin-top:8px;padding:9px 14px;font-size:10.5px;line-height:1.5;color:#374151;text-align:center;page-break-inside:avoid;}
+        .hwp-warranty b{color:#E0791C;font-weight:800;font-size:13.5px;letter-spacing:.02em;}
         .hwp-footer-text{font-size:9px;color:#9AA1AC;text-align:center;margin-top:6px;}
         .hwp-ticket{width:80mm;box-sizing:border-box;padding:4mm;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#151A24;}
         .hwp-ticket .hwp-t-warranty{border-top:1px dashed #B9BDC7;margin-top:6px;padding-top:6px;font-size:8.5px;line-height:1.45;color:#4B5563;text-align:center;}
@@ -2206,22 +2206,53 @@ async function generarPDFBlob(nodo, formato) {
   let escala = esMovil ? 2 : 3;
   while (escala > 1 && anchoCss * altoCss * escala * escala > maxPixeles) escala -= 0.5;
   if (escala < 1) escala = 1;
+  const calidad = esMovil ? 0.85 : 0.92;
   const canvas = await html2canvas(nodo, { scale: escala, backgroundColor: "#ffffff" });
-  const imgData = canvas.toDataURL("image/jpeg", esMovil ? 0.85 : 0.92);
   const pxToMm = 25.4 / (96 * escala);
-  const imgWidthMm = canvas.width * pxToMm;
-  const imgHeightMm = canvas.height * pxToMm;
 
   let pdf;
   if (formato === "ticket") {
+    const imgWidthMm = canvas.width * pxToMm;
+    const imgHeightMm = canvas.height * pxToMm;
     pdf = new jsPDF({ unit: "mm", format: [imgWidthMm, imgHeightMm] });
-    pdf.addImage(imgData, "JPEG", 0, 0, imgWidthMm, imgHeightMm);
+    pdf.addImage(canvas.toDataURL("image/jpeg", calidad), "JPEG", 0, 0, imgWidthMm, imgHeightMm);
   } else {
+    // Carta: si el documento es largo, se reparte en varias páginas (antes se cortaba al final de la primera,
+    // y se perdían el código QR y la garantía). Los cortes se hacen en filas en blanco para no partir el texto.
     pdf = new jsPDF({ unit: "mm", format: "letter" });
     const pageWidth = pdf.internal.pageSize.getWidth();
-    const drawWidth = pageWidth - 20;
-    const drawHeight = (imgHeightMm * drawWidth) / imgWidthMm;
-    pdf.addImage(imgData, "JPEG", 10, 10, drawWidth, drawHeight);
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margen = 10;
+    const drawWidth = pageWidth - margen * 2;
+    const mmPorPx = drawWidth / canvas.width;
+    const altoPaginaPx = Math.floor((pageHeight - margen * 2) / mmPorPx);
+    const ctx = canvas.getContext("2d");
+    let y = 0;
+    let primera = true;
+    while (y < canvas.height) {
+      let fin = Math.min(y + altoPaginaPx, canvas.height);
+      if (fin < canvas.height) {
+        const limite = Math.max(y + Math.floor(altoPaginaPx * 0.6), fin - 260);
+        for (let yy = fin; yy > limite; yy--) {
+          const fila = ctx.getImageData(0, yy, canvas.width, 1).data;
+          let blanca = true;
+          for (let i = 0; i < fila.length; i += 4) {
+            if (fila[i] < 235 || fila[i + 1] < 235 || fila[i + 2] < 235) { blanca = false; break; }
+          }
+          if (blanca) { fin = yy; break; }
+        }
+      }
+      const alto = Math.max(1, fin - y);
+      const trozo = document.createElement("canvas");
+      trozo.width = canvas.width;
+      trozo.height = alto;
+      trozo.getContext("2d").drawImage(canvas, 0, y, canvas.width, alto, 0, 0, canvas.width, alto);
+      if (!primera) pdf.addPage();
+      pdf.addImage(trozo.toDataURL("image/jpeg", calidad), "JPEG", margen, margen, drawWidth, alto * mmPorPx);
+      trozo.width = 0;
+      primera = false;
+      y = fin;
+    }
   }
   canvas.width = 0; canvas.height = 0; // libera memoria del celular
   return pdf;
@@ -2526,6 +2557,11 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-line" />
               <div style={{ textAlign: "center", color: "#777" }}>¡Gracias por su preferencia!</div>
               <div style={{ textAlign: "center", marginTop: 8 }}><canvas ref={qrRef}></canvas></div>
+              <div style={{ border: "1.5px solid #E0791C", borderRadius: 8, padding: "8px 10px", marginTop: 10, fontSize: 10.5, lineHeight: 1.5, textAlign: "center", color: "#374151" }}>
+                <b style={{ color: "#E0791C", fontSize: 13, fontWeight: 800 }}>Importante:</b> la garantía de los equipos nuevos es de 2 años y la de los equipos refurbished es de 1 mes. El servicio de instalación cubre una garantía de 3 meses.
+                Ninguna garantía cubre picos eléctricos ni mala manipulación del equipo por el cliente o terceros. Si el equipo presenta alteraciones en el sello de garantía, esta no aplica.
+                Gracias por su comprensión.
+              </div>
             </div>
           ) : (
             <div className="hw-print-paper hw-paper-ticket" ref={paperRef}>
