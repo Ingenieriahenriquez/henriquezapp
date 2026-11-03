@@ -2745,6 +2745,16 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   );
 }
 
+// Espera (hasta ~8 segundos) a que una factura recién creada ya exista en la base de datos.
+async function esperarFacturaGuardada(id) {
+  for (let i = 0; i < 20; i++) {
+    const { data } = await supabase.from("facturas").select("id").eq("id", id).maybeSingle();
+    if (data) return true;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return false;
+}
+
 function Facturacion({ facturas, setFacturas, clientes, productos, setProductos, negocio, miEmail, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios, abonosPagos = [], setAbonosPagos }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -2858,18 +2868,29 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
       // Avance (adelanto): se registra como el primer abono de la factura. Si fue por transferencia,
       // también entra a la cuenta bancaria predeterminada.
       if (estadoPago === "Abonada" && setAbonosPagos) {
-        setAbonosPagos([...abonosPagos, { id: uid(), facturaId: nueva.id, monto: montoAvance, fecha: new Date().toISOString().slice(0, 10), metodo, nota: "Avance inicial" }]);
+        const abonoInicial = { id: uid(), facturaId: nueva.id, monto: montoAvance, fecha: new Date().toISOString().slice(0, 10), metodo, nota: "Avance inicial" };
+        let movInicial = null;
         if (metodo === "Transferencia" && setMovimientosBancarios) {
           const cuentaAv = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
           if (cuentaAv) {
-            setMovimientosBancarios([...movimientosBancarios, {
+            movInicial = {
               id: uid(), cuentaId: cuentaAv.id, tipo: "Abono de factura (transferencia)", monto: montoAvance,
               descripcion: `Avance factura ${nueva.ncf} · ${nueva.clienteNombre}`, fechaHora: new Date().toISOString(), facturaId: nueva.id,
-            }]);
+            };
           } else {
             alert("La factura y el avance se guardaron, pero no se pudo registrar en Bancos porque todavía no tienes ninguna cuenta bancaria creada.");
           }
         }
+        // El avance se guarda DESPUÉS de que la factura ya exista en la base de datos
+        // (si no, la base de datos rechaza el abono porque su factura todavía no está).
+        esperarFacturaGuardada(nueva.id).then((ok) => {
+          if (!ok) {
+            alert("La factura se guardó, pero el avance no se pudo registrar a tiempo. Regístralo en la opción Abonos (monto: " + money(montoAvance) + ").");
+            return;
+          }
+          setAbonosPagos((prev) => [...prev, abonoInicial]);
+          if (movInicial) setMovimientosBancarios((prev) => [...prev, movInicial]);
+        });
       }
       // Si se paga por transferencia y ya está pagada, se abona sola a la cuenta
       // bancaria marcada como predeterminada — así no hay que registrarlo dos veces.
