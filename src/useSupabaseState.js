@@ -12,6 +12,7 @@ const CAMEL_TO_SNAKE = {
   tipoComprobante: "tipo_comprobante",
   ncfManual: "ncf_manual",
   aplicaItbis: "aplicaitbis",
+  notaImportante: "nota_importante",
   montoApertura: "monto_apertura",
   montoCierre: "monto_cierre",
   montoEsperado: "monto_esperado",
