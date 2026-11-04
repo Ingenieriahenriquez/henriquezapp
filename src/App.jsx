@@ -3190,11 +3190,13 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   const [printDoc, setPrintDoc] = useState(null);
   const [clienteId, setClienteId] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
-  const totals = calcTotal(items.filter((i) => i.nombre));
+  const [aplicaItbis, setAplicaItbis] = useState(true);
+  const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
 
   function abrirNueva() {
     setEditingId(null);
     setClienteId("");
+    setAplicaItbis(true);
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
     setOpen(true);
   }
@@ -3203,6 +3205,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     setEditingId(c.id);
     setClienteId(clientes.find((cl) => cl.nombre === c.clienteNombre)?.id || "");
     setItems(c.items);
+    setAplicaItbis(c.aplicaItbis !== false);
     setOpen(true);
   }
 
@@ -3211,11 +3214,11 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     if (!cliente) { alert("Selecciona el cliente antes de guardar la cotización."); return; }
     if (items.every((i) => !i.nombre)) { alert("Agrega al menos un producto o servicio."); return; }
     if (editingId) {
-      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre) } : c)));
+      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), aplicaItbis } : c)));
     } else {
       setCotizaciones([...cotizaciones, {
         id: uid(), numero: nextCot(cotizaciones), clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), estado: "Pendiente",
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), aplicaItbis, estado: "Pendiente",
       }]);
     }
     setOpen(false);
@@ -3229,7 +3232,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   function convertir(c) {
     setFacturas((prev) => [...prev, {
       id: uid(), ncf: nextNcf(prev), clienteId: null, clienteNombre: c.clienteNombre,
-      fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: c.items, metodo: "Efectivo", estado: "Pagada", abono: 0,
+      fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: c.items, aplicaItbis: c.aplicaItbis !== false, metodo: "Efectivo", estado: "Pagada", abono: 0,
     }]);
     marcar(c.id, "Aprobada");
     setTab("facturacion");
@@ -3237,12 +3240,12 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
+    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, aplicaItbis: c.aplicaItbis, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappCotizacion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    const total = calcTotal(c.items).total;
+    const total = calcTotal(c.items, c.aplicaItbis).total;
     const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${c.fecha}\nTotal: ${money(total)}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
@@ -3259,7 +3262,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
           <thead><tr><th>No.</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {cotizaciones.slice().reverse().map((c) => {
-              const t = calcTotal(c.items);
+              const t = calcTotal(c.items, c.aplicaItbis);
               return (
                 <tr key={c.id}>
                   <td className="hw-mono">{c.numero}</td>
@@ -3293,10 +3296,16 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
             <FieldRow label="Cliente *">
               <SelectorCliente clientes={clientes} value={clienteId} onChange={setClienteId} />
             </FieldRow>
+            <FieldRow label="ITBIS">
+              <select className="hw-select" value={aplicaItbis ? "con" : "sin"} onChange={(e) => setAplicaItbis(e.target.value === "con")}>
+                <option value="con">Con ITBIS (18%)</option>
+                <option value="sin">Sin ITBIS (exento)</option>
+              </select>
+            </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
               <div className="hw-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
-              <div className="hw-total-row"><span>ITBIS (18%)</span><span>{money(totals.itbis)}</span></div>
+              <div className="hw-total-row"><span>{aplicaItbis ? "ITBIS (18%)" : "ITBIS (exento)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardar}>{editingId ? "Actualizar cotización" : "Generar cotización"}</button>
