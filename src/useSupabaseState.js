@@ -13,6 +13,7 @@ const CAMEL_TO_SNAKE = {
   ncfManual: "ncf_manual",
   aplicaItbis: "aplicaitbis",
   notaImportante: "nota_importante",
+  avancePct: "avance_pct",
   montoApertura: "monto_apertura",
   montoCierre: "monto_cierre",
   montoEsperado: "monto_esperado",
