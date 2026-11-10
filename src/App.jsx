@@ -2495,6 +2495,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   const esFactura = doc.tipo === "Factura";
   const tasaUsd = Number(negocio.tasaDolar) || 0;
   const conAvance = Number(doc.avance) > 0 && Number(doc.saldoPendiente) > 0.009;
+  const avanceLabel = esFactura ? "Avance a total de factura" : "Avance requerido";
   const avanceTotalDoc = Number(doc.avance || 0) + Number(doc.saldoPendiente || 0);
   const avancePctTxt = avanceTotalDoc > 0 ? (Math.round((Number(doc.avance) / avanceTotalDoc) * 1000) / 10).toString().replace(/\.0$/, "") : "";
   const notaImp = esFactura ? String(doc.notaImportante || "").trim() : "";
@@ -2559,7 +2560,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>{avanceLabel} ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -2617,7 +2618,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
               <div className="hw-paper-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
               <div className="hw-paper-total-row grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hw-paper-total-row" style={avanceBoxStyle}><span>{avanceLabel} ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hw-paper-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
               {tasaUsd > 0 && (
                 <>
                   <div className="hw-paper-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -2696,7 +2697,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                     <div className="hwp-total-row"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                     <div className="hwp-total-row"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS (18%)"}</span><span>{money(totals.itbis)}</span></div>
                     <div className="hwp-total-row grand"><span>Total</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hwp-total-row" style={avanceBoxStyle}><span>Avance a total de factura ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hwp-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hwp-total-row" style={avanceBoxStyle}><span>{avanceLabel} ({avancePctTxt}%)</span><span>{money(doc.avance)}</span></div><div className="hwp-total-row" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
                     {tasaUsd > 0 && (
                 <>
                   <div className="hwp-total-row" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -2760,7 +2761,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 <div className="hwp-t-total"><span>Subtotal</span><span>{money(totals.sub)}</span></div>
                 <div className="hwp-t-total"><span>{doc.aplicaItbis === false ? "ITBIS (exento)" : "ITBIS"}</span><span>{money(totals.itbis)}</span></div>
                 <div className="hwp-t-total grand"><span>TOTAL</span><span>{money(totals.total)}</span></div>
-              {conAvance && (<><div className="hwp-t-total"><span>Avance a total de factura</span><span>{money(doc.avance)}</span></div><div className="hwp-t-total" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
+              {conAvance && (<><div className="hwp-t-total"><span>{avanceLabel}</span><span>{money(doc.avance)}</span></div><div className="hwp-t-total" style={{ fontWeight: 700 }}><span>Saldo pendiente</span><span>{money(doc.saldoPendiente)}</span></div></>)}
                 {tasaUsd > 0 && (
                 <>
                   <div className="hwp-t-total" style={{ marginTop: 6, fontSize: 10.5, color: "#6B7280" }}><span>Equivalente en US$ (tasa RD$ {tasaUsd.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span><span></span></div>
@@ -3191,12 +3192,18 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   const [clienteId, setClienteId] = useState("");
   const [items, setItems] = useState([{ nombre: "", cantidad: 1, precio: 0 }]);
   const [aplicaItbis, setAplicaItbis] = useState(true);
+  const [conAvanceCot, setConAvanceCot] = useState(false);
+  const [avancePctCot, setAvancePctCot] = useState("80");
   const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
+  const pctCotNum = Math.min(Math.max(Number(avancePctCot) || 0, 0), 99.99);
+  const avanceCotMonto = Math.round(totals.total * pctCotNum) / 100;
 
   function abrirNueva() {
     setEditingId(null);
     setClienteId("");
     setAplicaItbis(true);
+    setConAvanceCot(false);
+    setAvancePctCot("80");
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
     setOpen(true);
   }
@@ -3206,6 +3213,8 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     setClienteId(clientes.find((cl) => cl.nombre === c.clienteNombre)?.id || "");
     setItems(c.items);
     setAplicaItbis(c.aplicaItbis !== false);
+    setConAvanceCot(Number(c.avancePct) > 0);
+    setAvancePctCot(Number(c.avancePct) > 0 ? String(c.avancePct) : "80");
     setOpen(true);
   }
 
@@ -3213,12 +3222,13 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente) { alert("Selecciona el cliente antes de guardar la cotización."); return; }
     if (items.every((i) => !i.nombre)) { alert("Agrega al menos un producto o servicio."); return; }
+    if (conAvanceCot && !(pctCotNum > 0)) { alert("Escribe el porcentaje de avance (por ejemplo 80)."); return; }
     if (editingId) {
-      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), aplicaItbis } : c)));
+      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0 } : c)));
     } else {
       setCotizaciones([...cotizaciones, {
         id: uid(), numero: nextCot(cotizaciones), clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), aplicaItbis, estado: "Pendiente",
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0, estado: "Pendiente",
       }]);
     }
     setOpen(false);
@@ -3240,13 +3250,17 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
 
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
-    setPrintDoc({ tipo: "Cotización", numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, aplicaItbis: c.aplicaItbis, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
+    const totC = calcTotal(c.items, c.aplicaItbis).total;
+    const avC = Number(c.avancePct) > 0 ? Math.round(totC * Number(c.avancePct)) / 100 : 0;
+    setPrintDoc({ tipo: "Cotización", avance: avC, saldoPendiente: avC > 0 ? totC - avC : 0, numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, aplicaItbis: c.aplicaItbis, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappCotizacion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
     const total = calcTotal(c.items, c.aplicaItbis).total;
-    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${c.fecha}\nTotal: ${money(total)}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
+    const avW = Number(c.avancePct) > 0 ? Math.round(total * Number(c.avancePct)) / 100 : 0;
+    const avTxt = avW > 0 ? `\nAvance requerido (${c.avancePct}%): ${money(avW)}\nSaldo restante: ${money(total - avW)}` : "";
+    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${c.fecha}\nTotal: ${money(total)}${avTxt}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -3301,6 +3315,24 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
                 <option value="con">Con ITBIS (18%)</option>
                 <option value="sin">Sin ITBIS (exento)</option>
               </select>
+            </FieldRow>
+            <FieldRow label="Avance requerido al cliente">
+              <select className="hw-select" value={conAvanceCot ? "si" : "no"} onChange={(e) => setConAvanceCot(e.target.value === "si")}>
+                <option value="no">Sin avance</option>
+                <option value="si">Con avance (adelanto)</option>
+              </select>
+              {conAvanceCot && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={avancePctCot} onChange={(e) => setAvancePctCot(e.target.value)} />
+                    <span>% del total</span>
+                  </div>
+                  <div style={{ marginTop: 8, padding: "9px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+                    <div><b>Avance que debe pagar el cliente:</b> {money(avanceCotMonto)} ({pctCotNum} %)</div>
+                    <div><b>Saldo restante:</b> {money(Math.max(totals.total - avanceCotMonto, 0))}</div>
+                  </div>
+                </div>
+              )}
             </FieldRow>
             <FieldRow label="Productos / servicios"><ItemsEditor items={items} setItems={setItems} productos={productos} setProductos={setProductos} /></FieldRow>
             <div style={{ marginTop: 10 }}>
