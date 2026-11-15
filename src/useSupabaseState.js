@@ -31,6 +31,8 @@ const CAMEL_TO_SNAKE = {
   otrosDescuentos: "otros_descuentos",
   salarioMensual: "salario_mensual",
   pagoDia: "pago_dia",
+  fotoCedula: "foto_cedula",
+  fotoCedulaReverso: "foto_cedula_reverso",
   tarifaDia: "tarifa_dia",
   descansoMin: "descanso_min",
   pagoId: "pago_id",
