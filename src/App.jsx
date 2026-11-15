@@ -4899,7 +4899,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const eEsHora = eModalidad === "Por hora";
   const eEsDia = eModalidad === "Por día";
   const ppyE = PERIODOS_POR_ANIO[ePeriodicidad] || 12;
-  const horaAutoE = eEsHora ? n(ePagoDia) / 8 : n(eMensual) / HORAS_MES;
+  // El monto que se escribe es el de cada período de pago (semana, quincena o mes)
+  const mensualE = n(eMensual) * ppyE / 12;
+  const horaAutoE = eEsHora ? n(ePagoDia) / 8 : mensualE / HORAS_MES;
   const horaE = eHora !== "" ? n(eHora) : horaAutoE;
   const hOrdAutoE = r2(HORAS_MES * 12 / ppyE);
   const hOrdE = eEsHora ? 44 : (eHOrd !== "" ? n(eHOrd) : hOrdAutoE);
@@ -4935,8 +4937,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   function abrirEditarEmpleado(e) {
     setEditEmpId(e.id); setECodigo(e.codigo || ""); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setEDepto(e.departamento || "");
     setECargo(e.cargo || ""); setETelefono(e.telefono || ""); setEIngreso(e.fechaIngreso || hoy); setEModalidad(e.modalidad || e.periodicidad || "Quincenal"); setEPagoDia(e.pagoDia ? String(e.pagoDia) : "");
-    const mensual = e.salarioMensual != null ? e.salarioMensual : r2(n(e.sueldo) * (PERIODOS_POR_ANIO[e.periodicidad] || 12) / 12);
-    setEMensual(String(mensual ?? "")); setEHora(e.salarioHora ? String(e.salarioHora) : "");
+    const ppyEd = PERIODOS_POR_ANIO[periodicidadDe(e.modalidad || e.periodicidad)] || 12;
+    const mensual = e.salarioMensual != null ? n(e.salarioMensual) : n(e.sueldo) * ppyEd / 12;
+    setEMensual(mensual ? String(r2(mensual * 12 / ppyEd)) : ""); setEHora(e.salarioHora ? String(e.salarioHora) : "");
     setEHOrd(e.horasOrdinarias ? String(e.horasOrdinarias) : ""); setEHExt(e.horasExtras ? String(e.horasExtras) : ""); setEHDob(e.horasDobles ? String(e.horasDobles) : "");
     setELey(e.aplicaLey !== false); setEOtrosImp(e.otrosImpuestos ? String(e.otrosImpuestos) : "");
     const tiene = n(e.prestamoMonto) > 0 || n(e.prestamoSaldo) > 0;
@@ -4947,16 +4950,16 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     if (!eNombre.trim()) { alert("Escribe el nombre completo del empleado."); return; }
     if (eEsHora && !(eHora !== "" ? n(eHora) > 0 : n(ePagoDia) > 0)) { alert("Escribe el pago por hora (o el pago por día, y el sistema lo divide entre 8)."); return; }
     if (eEsDia && n(ePagoDia) <= 0) { alert("Escribe el pago por día."); return; }
-    if (!eEsHora && !eEsDia && (!eMensual || n(eMensual) <= 0)) { alert("Escribe el salario mensual."); return; }
+    if (!eEsHora && !eEsDia && (!eMensual || n(eMensual) <= 0)) { alert(`Escribe el sueldo ${eModalidad === "Mensual" ? "mensual" : eModalidad.toLowerCase()}.`); return; }
     if (ePrestamo && n(ePrestMonto) <= 0) { alert("Escribe el monto del préstamo, o desmarca la opción de préstamo."); return; }
     if (ePrestamo && n(ePrestCuota) <= 0) { alert("Escribe la cuota que se le descontará en cada pago."); return; }
     const saldo = ePrestamo ? (ePrestSaldo !== "" ? n(ePrestSaldo) : n(ePrestMonto)) : 0;
     const datos = {
       codigo: eCodigo.trim(), nombre: eNombre.trim(), cedula: eCedula.trim(), departamento: eDepto.trim(), cargo: eCargo.trim(), telefono: eTelefono.trim(),
       fechaIngreso: eIngreso, modalidad: eModalidad, periodicidad: ePeriodicidad, pagoDia: n(ePagoDia),
-      salarioMensual: eEsHora || eEsDia ? 0 : n(eMensual), salarioHora: eEsHora ? r2(horaE * 100) / 100 : (eHora !== "" ? n(eHora) : 0),
+      salarioMensual: eEsHora || eEsDia ? 0 : r2(mensualE), salarioHora: eEsHora ? r2(horaE * 100) / 100 : (eHora !== "" ? n(eHora) : 0),
       horasOrdinarias: eEsHora || eEsDia ? 0 : (eHOrd !== "" ? n(eHOrd) : 0), horasExtras: eEsHora || eEsDia ? 0 : n(eHExt), horasDobles: eEsHora || eEsDia ? 0 : n(eHDob),
-      sueldo: eEsHora || eEsDia ? 0 : r2(n(eMensual) * 12 / ppyE), aplicaLey: eLey, otrosImpuestos: n(eOtrosImp),
+      sueldo: eEsHora || eEsDia ? 0 : n(eMensual), aplicaLey: eLey, otrosImpuestos: n(eOtrosImp),
       prestamoMonto: ePrestamo ? n(ePrestMonto) : 0, prestamoCuota: ePrestamo ? n(ePrestCuota) : 0, prestamoSaldo: saldo,
     };
     if (editEmpId) {
@@ -5366,7 +5369,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   <td>{e.nombre}{e.cargo ? <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.cargo}</div> : null}</td>
                   <td>{e.departamento || "—"}</td>
                   <td>{e.cedula || "—"}</td>
-                  <td>{(e.modalidad === "Por día") ? money(e.pagoDia) + " / día" : (e.modalidad === "Por hora") ? money(e.salarioHora) + " / hora" : money(e.salarioMensual != null ? e.salarioMensual : (Number(e.sueldo) || 0) * (PERIODOS_POR_ANIO[e.periodicidad] || 12) / 12) + " / mes"}</td>
+                  <td>{(e.modalidad === "Por día") ? money(e.pagoDia) + " / día" : (e.modalidad === "Por hora") ? money(e.salarioHora) + " / hora" : money(Number(e.sueldo) || (Number(e.salarioMensual) || 0) * 12 / (PERIODOS_POR_ANIO[periodicidadDe(e.modalidad || e.periodicidad)] || 12)) + " / " + ({ Semanal: "semana", Quincenal: "quincena" }[e.modalidad || e.periodicidad] || "mes")}</td>
                   <td>{e.modalidad || e.periodicidad}</td>
                   <td>{Number(e.prestamoSaldo) > 0 ? <b>{money(e.prestamoSaldo)}</b> : "—"}</td>
                   <td>{e.activo === false ? "Inactivo" : "Activo"}</td>
@@ -5459,7 +5462,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               ) : (
                 <>
                   <div style={grid2}>
-                    <FieldRow label="Salario mensual (RD$) *"><input className="hw-input" type="number" value={eMensual} onChange={(e) => setEMensual(e.target.value)} placeholder="0.00" /></FieldRow>
+                    <FieldRow label={(eModalidad === "Mensual" ? "Salario mensual" : "Sueldo " + eModalidad.toLowerCase()) + " (RD$) *"}><input className="hw-input" type="number" value={eMensual} onChange={(e) => setEMensual(e.target.value)} placeholder="0.00" /></FieldRow>
                     <FieldRow label="Salario por hora"><input className="hw-input" type="number" value={eHora} onChange={(e) => setEHora(e.target.value)} placeholder={horaAutoE ? r2(horaAutoE).toFixed(2) : "auto"} /></FieldRow>
                   </div>
                   <div style={grid3}>
@@ -5467,7 +5470,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                     <FieldRow label="Horas extras (135 %)"><input className="hw-input" type="number" value={eHExt} onChange={(e) => setEHExt(e.target.value)} placeholder="0" /></FieldRow>
                     <FieldRow label="Horas dobles (200 %)"><input className="hw-input" type="number" value={eHDob} onChange={(e) => setEHDob(e.target.value)} placeholder="0" /></FieldRow>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>El salario por hora se calcula solo (salario mensual ÷ 190.64 horas). Las horas son las de un período normal; al registrar cada pago se pueden cambiar.</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>Escriba lo que gana en cada período de pago (por semana, por quincena o por mes). El salario por hora se calcula solo. Las horas son las de un período normal; al registrar cada pago se pueden cambiar.</div>
                   <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
                     <FilaResumen etiqueta="Salario ordinario" valor={calcE.ordinario} />
                     {calcE.pagoExtras > 0 && <FilaResumen etiqueta="Pago de horas extras" valor={calcE.pagoExtras} />}
