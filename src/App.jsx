@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard, Camera } from "lucide-react";
+import { Users, FileText, ClipboardList, Package, LayoutDashboard, Plus, X, Check, AlertTriangle, Search, Wallet, Clock, ShieldAlert, Wrench, ShoppingCart, Edit2, ArrowRight, Hammer, MapPin, Printer, MessageCircle, BarChart3, UserCog, Barcode, Coins, LineChart, Banknote, Settings, Headphones, Briefcase, Download, Share2, Mail, Lock, User, Eye, EyeOff, LogOut, Landmark, ArrowLeftRight, CreditCard, Camera } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { useSupabaseState } from "./useSupabaseState";
 import { TARJETAS_BANCO } from "./tarjetasBancos";
@@ -124,6 +124,7 @@ const NAV = [
   { id: "inventario", label: "Inventario", icon: Package },
   { id: "compras", label: "Compras a suplidores", icon: ShoppingCart },
   { id: "gastos", label: "Gastos", icon: Wallet },
+  { id: "nomina", label: "Nómina", icon: Briefcase },
   { id: "reportes", label: "Reportes", icon: BarChart3 },
   { id: "usuarios", label: "Usuarios", icon: UserCog },
   { id: "codigobarras", label: "Código de barras · Consulta", icon: Barcode },
@@ -1153,6 +1154,8 @@ function Panel({ session }) {
   const [abonosPagos, setAbonosPagos] = useSupabaseState("abonos_pagos");
   const [compras, setCompras] = useSupabaseState("compras");
   const [gastos, setGastos] = useSupabaseState("gastos");
+  const [empleados, setEmpleados] = useSupabaseState("empleados");
+  const [pagosNomina, setPagosNomina] = useSupabaseState("pagos_nomina");
   const [cuentasBancarias, setCuentasBancarias] = useSupabaseState("cuentas_bancarias");
   const [movimientosBancarios, setMovimientosBancarios] = useSupabaseState("movimientos_bancarios");
   const negocio = negocioConfig[0] || BUSINESS;
@@ -1558,6 +1561,9 @@ function Panel({ session }) {
         <div style={{ display: tab === "gastos" ? "block" : "none" }}>
           <Gastos gastos={gastos} setGastos={setGastos} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
+        <div style={{ display: tab === "nomina" ? "block" : "none" }}>
+          <Nomina empleados={empleados} setEmpleados={setEmpleados} pagosNomina={pagosNomina} setPagosNomina={setPagosNomina} negocio={negocio} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
+        </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
         <div style={{ display: tab === "codigobarras" ? "block" : "none" }}><CodigoBarras productos={productos} /></div>
@@ -1608,6 +1614,7 @@ const TILES = [
   { id: "ordenes", label: "Órdenes de\ntrabajo", icon: Hammer, from: "#1D9A7C", to: "#116651" },
   { id: "compras", label: "Compras a\nsuplidores", icon: ShoppingCart, from: "#C2542A", to: "#933F1F" },
   { id: "gastos", label: "Gastos", icon: Wallet, from: "#8A4FBF", to: "#623890" },
+  { id: "nomina", label: "Nómina", icon: Briefcase, from: "#0E8FA3", to: "#0A6877" },
   { id: "reportes", label: "Reportes", icon: BarChart3, from: "#3F8FE0", to: "#2B67AC" },
   { id: "usuarios", label: "Usuarios", icon: UserCog, from: "#6B7280", to: "#454A52" },
   { id: "codigobarras", label: "Código de\nbarras · Consulta", icon: Barcode, from: "#1F2937", to: "#0F1520" },
@@ -4621,6 +4628,505 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
             )}
             <FieldRow label="Nota (opcional)"><input className="hw-input" value={nota} onChange={(e) => setNota(e.target.value)} /></FieldRow>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardar}>Guardar gasto</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- NÓMINA: empleados, pagos con descuentos de ley, recibo en PDF y regalía pascual ----------
+const PERIODICIDADES = ["Semanal", "Quincenal", "Mensual"];
+const PERIODOS_POR_ANIO = { Semanal: 52, Quincenal: 24, Mensual: 12 };
+// Parámetros de ley (República Dominicana, 2026). Si cambian, se actualizan aquí.
+const LEY_NOMINA = {
+  afp: 0.0287, sfs: 0.0304,
+  topeAfp: 464460, topeSfs: 232230,
+  // [límite superior anual, tasa, cuota fija, exceso sobre]
+  escalaIsr: [[416220, 0, 0, 0], [624329, 0.15, 0, 416220], [867123, 0.20, 31216, 624329], [Infinity, 0.25, 79776, 867123]],
+};
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+function isrAnual(base) {
+  for (const [lim, tasa, fija, exceso] of LEY_NOMINA.escalaIsr) {
+    if (base <= lim) return tasa === 0 ? 0 : fija + (base - exceso) * tasa;
+  }
+  return 0;
+}
+// Calcula AFP, SFS e ISR de un pago a partir de lo que se le paga al empleado en el período.
+function calcularLey(bruto, periodicidad) {
+  const ppy = PERIODOS_POR_ANIO[periodicidad] || 12;
+  const mensual = (Number(bruto) || 0) * ppy / 12;
+  const afpM = Math.min(mensual, LEY_NOMINA.topeAfp) * LEY_NOMINA.afp;
+  const sfsM = Math.min(mensual, LEY_NOMINA.topeSfs) * LEY_NOMINA.sfs;
+  const anual = (mensual - afpM - sfsM) * 12;
+  return { afp: r2(afpM * 12 / ppy), sfs: r2(sfsM * 12 / ppy), isr: r2(isrAnual(anual) / ppy) };
+}
+const fmtRD = (n) => "RD$ " + Number(n || 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Recibo de pago en PDF dibujado directamente (texto), liviano y rápido.
+function generarReciboNominaPDF(p, emp, negocio) {
+  const pdf = new jsPDF({ unit: "mm", format: "letter" });
+  const W = 215.9, M = 18;
+  let y = 20;
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(15); pdf.setTextColor(16, 24, 39);
+  pdf.text(String(negocio?.nombre || ""), M, y);
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108);
+  y += 5; if (negocio?.direccion) { pdf.text(String(negocio.direccion), M, y); y += 4.5; }
+  if (negocio?.telefono) { pdf.text("Tel: " + negocio.telefono, M, y); y += 4.5; }
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(14); pdf.setTextColor(224, 121, 28);
+  pdf.text("RECIBO DE PAGO DE NÓMINA", W - M, 20, { align: "right" });
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108);
+  pdf.text("Fecha de pago: " + (p.fecha || ""), W - M, 26, { align: "right" });
+  y = Math.max(y, 32) + 4;
+  pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.6); pdf.line(M, y, W - M, y); y += 8;
+
+  pdf.setTextColor(16, 24, 39); pdf.setFontSize(10.5);
+  const dato = (et, val, x, yy) => { pdf.setFont("helvetica", "bold"); pdf.text(et, x, yy); pdf.setFont("helvetica", "normal"); pdf.text(String(val || "-"), x + 30, yy); };
+  dato("Empleado:", p.empleadoNombre, M, y); dato("Cédula:", emp?.cedula, 118, y); y += 6.5;
+  dato("Cargo:", emp?.cargo, M, y); dato("Período:", p.periodo, 118, y); y += 6.5;
+  dato("Método de pago:", p.metodo, M, y); y += 10;
+
+  const fila = (txt, val, neg, bold) => {
+    pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(10.5);
+    pdf.text(txt, M + 3, y); pdf.text((neg ? "- " : "") + fmtRD(val), W - M - 3, y, { align: "right" }); y += 6.5;
+  };
+  const cab = (txt) => {
+    pdf.setFillColor(238, 240, 244); pdf.rect(M, y - 4.8, W - 2 * M, 7, "F");
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.setTextColor(16, 24, 39); pdf.text(txt, M + 3, y); y += 7;
+  };
+  cab("INGRESOS");
+  fila("Sueldo del período", p.sueldoBase);
+  if (Number(p.horasExtras)) fila("Horas extras", p.horasExtras);
+  if (Number(p.bonos)) fila("Bonos / comisiones", p.bonos);
+  if (!Number(p.horasExtras) && !Number(p.bonos) && Number(p.adicionales)) fila("Adicionales", p.adicionales);
+  const totalIng = (Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0);
+  pdf.setDrawColor(190, 194, 202); pdf.setLineWidth(0.3); pdf.line(M, y - 3, W - M, y - 3);
+  fila("Total ingresos", totalIng, false, true); y += 3;
+  cab("DESCUENTOS");
+  let hayDesc = false;
+  if (Number(p.afp)) { fila("AFP (pensiones) 2.87%", p.afp, true); hayDesc = true; }
+  if (Number(p.sfs)) { fila("SFS (seguro de salud) 3.04%", p.sfs, true); hayDesc = true; }
+  if (Number(p.isr)) { fila("ISR (impuesto sobre la renta)", p.isr, true); hayDesc = true; }
+  if (Number(p.adelantos)) { fila("Adelantos / préstamos", p.adelantos, true); hayDesc = true; }
+  if (Number(p.otrosDescuentos)) { fila("Otros descuentos", p.otrosDescuentos, true); hayDesc = true; }
+  if (!hayDesc && Number(p.descuentos)) { fila("Descuentos", p.descuentos, true); hayDesc = true; }
+  if (!hayDesc) fila("Sin descuentos", 0);
+  pdf.line(M, y - 3, W - M, y - 3);
+  fila("Total descuentos", p.descuentos, true, true); y += 4;
+  pdf.setFillColor(253, 241, 230); pdf.setDrawColor(224, 121, 28); pdf.setLineWidth(0.6);
+  pdf.roundedRect(M, y - 5.5, W - 2 * M, 11, 2, 2, "FD");
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(12.5); pdf.setTextColor(16, 24, 39);
+  pdf.text("NETO PAGADO", M + 4, y + 1.5); pdf.text(fmtRD(p.neto), W - M - 4, y + 1.5, { align: "right" });
+  y += 14;
+  if (p.nota) { pdf.setFont("helvetica", "normal"); pdf.setFontSize(9.5); pdf.setTextColor(90, 96, 108); pdf.text("Nota: " + p.nota, M, y, { maxWidth: W - 2 * M }); y += 8; }
+  y = Math.max(y + 22, 200);
+  pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.3);
+  pdf.line(M + 5, y, M + 70, y); pdf.line(W - M - 70, y, W - M - 5, y);
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(9.5); pdf.setTextColor(16, 24, 39);
+  pdf.text("Firma del empleado", M + 37.5, y + 5, { align: "center" });
+  pdf.text("Por la empresa", W - M - 37.5, y + 5, { align: "center" });
+  pdf.setFontSize(8); pdf.setTextColor(140, 146, 156);
+  pdf.text("Recibo generado por " + (negocio?.nombre || ""), W / 2, 266, { align: "center" });
+  return pdf;
+}
+
+function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [vista, setVista] = useState("pagos");
+  const [filtroMes, setFiltroMes] = useState("todos");
+  const [anioRegalia, setAnioRegalia] = useState(String(new Date().getFullYear()));
+  // Empleado
+  const [openEmp, setOpenEmp] = useState(false);
+  const [editEmpId, setEditEmpId] = useState(null);
+  const [eNombre, setENombre] = useState("");
+  const [eCedula, setECedula] = useState("");
+  const [eCargo, setECargo] = useState("");
+  const [eTelefono, setETelefono] = useState("");
+  const [eSueldo, setESueldo] = useState("");
+  const [ePeriodicidad, setEPeriodicidad] = useState("Quincenal");
+  const [eIngreso, setEIngreso] = useState(hoy);
+  const [eLey, setELey] = useState(true);
+  // Pago
+  const [openPago, setOpenPago] = useState(false);
+  const [editPagoId, setEditPagoId] = useState(null);
+  const [pEmpleadoId, setPEmpleadoId] = useState("");
+  const [pPeriodo, setPPeriodo] = useState("");
+  const [pFecha, setPFecha] = useState(hoy);
+  const [pSueldo, setPSueldo] = useState("");
+  const [pHoras, setPHoras] = useState("");
+  const [pBonos, setPBonos] = useState("");
+  const [pAuto, setPAuto] = useState(true);
+  const [pAfp, setPAfp] = useState("");
+  const [pSfs, setPSfs] = useState("");
+  const [pIsr, setPIsr] = useState("");
+  const [pAdelantos, setPAdelantos] = useState("");
+  const [pOtros, setPOtros] = useState("");
+  const [pMetodo, setPMetodo] = useState("Efectivo");
+  const [pNota, setPNota] = useState("");
+  const [recibo, setRecibo] = useState(null);
+
+  const n = (v) => Number(v) || 0;
+  const empPago = empleados.find((e) => e.id === pEmpleadoId);
+  const ingresosForm = n(pSueldo) + n(pHoras) + n(pBonos);
+  const descLeyForm = n(pAfp) + n(pSfs) + n(pIsr);
+  const descuentosForm = descLeyForm + n(pAdelantos) + n(pOtros);
+  const netoForm = r2(ingresosForm - descuentosForm);
+
+  // Recalcula AFP/SFS/ISR automáticamente mientras no se hayan escrito a mano.
+  useEffect(() => {
+    if (!openPago || !pAuto) return;
+    if (!empPago || empPago.aplicaLey === false) { setPAfp(""); setPSfs(""); setPIsr(""); return; }
+    const l = calcularLey(ingresosForm, empPago.periodicidad);
+    setPAfp(String(l.afp)); setPSfs(String(l.sfs)); setPIsr(String(l.isr));
+  }, [openPago, pAuto, pEmpleadoId, pSueldo, pHoras, pBonos]);
+
+  function abrirNuevoEmpleado() {
+    setEditEmpId(null); setENombre(""); setECedula(""); setECargo(""); setETelefono(""); setESueldo("");
+    setEPeriodicidad("Quincenal"); setEIngreso(hoy); setELey(true);
+    setOpenEmp(true);
+  }
+  function abrirEditarEmpleado(e) {
+    setEditEmpId(e.id); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setECargo(e.cargo || ""); setETelefono(e.telefono || "");
+    setESueldo(String(e.sueldo ?? "")); setEPeriodicidad(e.periodicidad || "Quincenal"); setEIngreso(e.fechaIngreso || hoy); setELey(e.aplicaLey !== false);
+    setOpenEmp(true);
+  }
+  function guardarEmpleado() {
+    if (!eNombre.trim()) { alert("Escribe el nombre del empleado."); return; }
+    if (!eSueldo || Number(eSueldo) <= 0) { alert("Escribe el sueldo (el monto que se le paga en cada período)."); return; }
+    const datos = { nombre: eNombre.trim(), cedula: eCedula.trim(), cargo: eCargo.trim(), telefono: eTelefono.trim(), sueldo: Number(eSueldo), periodicidad: ePeriodicidad, fechaIngreso: eIngreso, aplicaLey: eLey };
+    if (editEmpId) {
+      setEmpleados(empleados.map((e) => (e.id === editEmpId ? { ...e, ...datos } : e)));
+    } else {
+      setEmpleados([...empleados, { id: uid(), ...datos, activo: true, creadoEn: new Date().toISOString() }]);
+    }
+    setOpenEmp(false); setEditEmpId(null);
+  }
+  function alternarActivo(e) {
+    setEmpleados(empleados.map((x) => (x.id === e.id ? { ...x, activo: x.activo === false } : x)));
+  }
+  function eliminarEmpleado(e) {
+    if (pagosNomina.some((p) => p.empleadoId === e.id)) { alert("Este empleado ya tiene pagos registrados, no se puede eliminar. Puede desactivarlo para que no aparezca al pagar."); return; }
+    if (!window.confirm(`¿Eliminar a ${e.nombre}?`)) return;
+    setEmpleados(empleados.filter((x) => x.id !== e.id));
+  }
+
+  function limpiarPago() {
+    setPHoras(""); setPBonos(""); setPAdelantos(""); setPOtros(""); setPAfp(""); setPSfs(""); setPIsr(""); setPNota("");
+    setPFecha(hoy); setPMetodo("Efectivo");
+  }
+  function abrirNuevoPago(emp) {
+    setEditPagoId(null); limpiarPago();
+    setPEmpleadoId(emp ? emp.id : "");
+    setPSueldo(emp ? String(emp.sueldo ?? "") : "");
+    setPPeriodo(""); setPAuto(true);
+    setOpenPago(true);
+  }
+  function abrirPagoRegalia(emp, monto, anio) {
+    setEditPagoId(null); limpiarPago();
+    setPEmpleadoId(emp.id); setPSueldo(String(r2(monto))); setPPeriodo(`Regalía pascual ${anio}`);
+    setPAuto(false); setPNota("Regalía pascual (1/12 del salario ordinario del año)");
+    setOpenPago(true);
+  }
+  function abrirEditarPago(p) {
+    setEditPagoId(p.id); setPAuto(false);
+    setPEmpleadoId(p.empleadoId || ""); setPPeriodo(p.periodo || ""); setPFecha(p.fecha || hoy);
+    setPSueldo(String(p.sueldoBase ?? ""));
+    const tieneDetalle = p.horasExtras != null || p.bonos != null;
+    setPHoras(p.horasExtras ? String(p.horasExtras) : ""); setPBonos(tieneDetalle ? (p.bonos ? String(p.bonos) : "") : (p.adicionales ? String(p.adicionales) : ""));
+    setPAfp(p.afp ? String(p.afp) : ""); setPSfs(p.sfs ? String(p.sfs) : ""); setPIsr(p.isr ? String(p.isr) : "");
+    const tieneDesc = p.adelantos != null || p.otrosDescuentos != null || p.afp != null;
+    setPAdelantos(p.adelantos ? String(p.adelantos) : ""); setPOtros(tieneDesc ? (p.otrosDescuentos ? String(p.otrosDescuentos) : "") : (p.descuentos ? String(p.descuentos) : ""));
+    setPMetodo(p.metodo || "Efectivo"); setPNota(p.nota || "");
+    setOpenPago(true);
+  }
+  function elegirEmpleadoPago(id) {
+    setPEmpleadoId(id);
+    const emp = empleados.find((e) => e.id === id);
+    if (emp && !editPagoId) setPSueldo(String(emp.sueldo ?? ""));
+  }
+
+  function sincronizarMovimiento(pagoId, metodoFinal, montoFinal, descripcionFinal) {
+    if (!setMovimientosBancarios) return;
+    const clave = "nom-" + pagoId;
+    const movExistente = movimientosBancarios.find((m) => m.gastoId === clave);
+    const corresponde = metodoFinal === "Transferencia" && montoFinal > 0;
+    if (corresponde && !movExistente) {
+      const cuentaPred = cuentasBancarias.find((c) => c.esPredeterminada) || cuentasBancarias.find((c) => !esCuentaCredito(c));
+      if (cuentaPred) {
+        setMovimientosBancarios([...movimientosBancarios, {
+          id: uid(), cuentaId: cuentaPred.id, tipo: "Pago de nómina (transferencia)", monto: Number(montoFinal),
+          descripcion: descripcionFinal, fechaHora: new Date().toISOString(), gastoId: clave,
+        }]);
+      } else {
+        alert("El pago se guardó, pero no se pudo debitar en Bancos porque todavía no tienes ninguna cuenta bancaria creada. Ve a la opción \"Bancos\" y crea una cuenta.");
+      }
+    } else if (corresponde && movExistente && (Number(movExistente.monto) !== Number(montoFinal) || movExistente.descripcion !== descripcionFinal)) {
+      setMovimientosBancarios(movimientosBancarios.map((m) => (m.id === movExistente.id ? { ...m, monto: Number(montoFinal), descripcion: descripcionFinal } : m)));
+    } else if (!corresponde && movExistente) {
+      setMovimientosBancarios(movimientosBancarios.filter((m) => m.id !== movExistente.id));
+    }
+  }
+
+  function guardarPago() {
+    const emp = empleados.find((e) => e.id === pEmpleadoId);
+    if (!emp) { alert("Elige el empleado."); return; }
+    if (!pPeriodo.trim()) { alert("Escribe el período que se está pagando (por ejemplo: 1 al 15 de noviembre)."); return; }
+    if (!pSueldo || n(pSueldo) <= 0) { alert("Escribe el sueldo del período."); return; }
+    if (netoForm < 0) { alert("Los descuentos no pueden ser mayores que lo que se le paga."); return; }
+    const datos = {
+      empleadoId: emp.id, empleadoNombre: emp.nombre, periodo: pPeriodo.trim(), fecha: pFecha,
+      sueldoBase: n(pSueldo), horasExtras: n(pHoras), bonos: n(pBonos), adicionales: r2(n(pHoras) + n(pBonos)),
+      afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr), adelantos: n(pAdelantos), otrosDescuentos: n(pOtros), descuentos: r2(descuentosForm),
+      neto: netoForm, metodo: pMetodo, nota: pNota.trim(),
+    };
+    const desc = `Nómina: ${emp.nombre} · ${pPeriodo.trim()}`;
+    if (editPagoId) {
+      setPagosNomina(pagosNomina.map((p) => (p.id === editPagoId ? { ...p, ...datos } : p)));
+      sincronizarMovimiento(editPagoId, pMetodo, netoForm, desc);
+    } else {
+      const nuevo = { id: uid(), ...datos, creadoEn: new Date().toISOString() };
+      setPagosNomina([...pagosNomina, nuevo]);
+      sincronizarMovimiento(nuevo.id, pMetodo, netoForm, desc);
+    }
+    setOpenPago(false); setEditPagoId(null);
+  }
+  function eliminarPago(p) {
+    if (!window.confirm(`¿Eliminar el pago de ${p.empleadoNombre} (${p.periodo})?`)) return;
+    setPagosNomina(pagosNomina.filter((x) => x.id !== p.id));
+    if (setMovimientosBancarios) setMovimientosBancarios(movimientosBancarios.filter((m) => m.gastoId !== "nom-" + p.id));
+  }
+
+  function descargarRecibo(p) {
+    const pdf = generarReciboNominaPDF(p, empleados.find((e) => e.id === p.empleadoId), negocio);
+    pdf.save(`Recibo-nomina-${(p.empleadoNombre || "").replace(/\s+/g, "-")}-${p.fecha}.pdf`);
+  }
+  async function compartirRecibo(p) {
+    const pdf = generarReciboNominaPDF(p, empleados.find((e) => e.id === p.empleadoId), negocio);
+    const nombre = `Recibo-nomina-${(p.empleadoNombre || "").replace(/\s+/g, "-")}-${p.fecha}.pdf`;
+    try {
+      const archivo = new File([pdf.output("blob")], nombre, { type: "application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files: [archivo] })) { await navigator.share({ files: [archivo], title: "Recibo de pago de nómina" }); return; }
+    } catch (err) { if (err && err.name === "AbortError") return; }
+    pdf.save(nombre);
+  }
+
+  const mesActual = hoy.slice(0, 7);
+  const pagadoMes = pagosNomina.filter((p) => (p.fecha || "").slice(0, 7) === mesActual).reduce((s, p) => s + (Number(p.neto) || 0), 0);
+  const activos = empleados.filter((e) => e.activo !== false);
+  const nominaPorPeriodo = activos.reduce((s, e) => s + (Number(e.sueldo) || 0), 0);
+  const meses = [...new Set(pagosNomina.map((p) => (p.fecha || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+  const pagosFiltrados = filtroMes === "todos" ? pagosNomina : pagosNomina.filter((p) => (p.fecha || "").slice(0, 7) === filtroMes);
+  const sum = (campo) => pagosFiltrados.reduce((s, p) => s + (Number(p[campo]) || 0), 0);
+  const totBruto = pagosFiltrados.reduce((s, p) => s + (Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0), 0);
+  const totLey = sum("afp") + sum("sfs") + sum("isr");
+  const totNeto = sum("neto");
+  // Regalía pascual: 1/12 del salario ordinario devengado en el año
+  const regalias = activos.map((e) => {
+    const devengado = pagosNomina
+      .filter((p) => p.empleadoId === e.id && (p.fecha || "").slice(0, 4) === anioRegalia && !String(p.periodo || "").startsWith("Regalía"))
+      .reduce((s, p) => s + (Number(p.sueldoBase) || 0), 0);
+    const yaPagada = pagosNomina.some((p) => p.empleadoId === e.id && p.periodo === `Regalía pascual ${anioRegalia}`);
+    return { e, devengado, regalia: r2(devengado / 12), yaPagada };
+  });
+
+  return (
+    <div>
+      <div className="hw-header">
+        <div><div className="hw-title">Nómina</div><div className="hw-sub">{activos.length} empleados activos · Pagado este mes: {money(pagadoMes)}</div></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="hw-btn ghost" onClick={abrirNuevoEmpleado}><Plus size={15} /> Nuevo empleado</button>
+          <button className="hw-btn" onClick={() => abrirNuevoPago(null)}><Plus size={15} /> Registrar pago</button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <button className={"hw-btn small " + (vista === "pagos" ? "" : "ghost")} onClick={() => setVista("pagos")}>Pagos</button>
+        <button className={"hw-btn small " + (vista === "empleados" ? "" : "ghost")} onClick={() => setVista("empleados")}>Empleados</button>
+        <button className={"hw-btn small " + (vista === "regalia" ? "" : "ghost")} onClick={() => setVista("regalia")}>Regalía pascual</button>
+      </div>
+
+      {vista === "pagos" && (
+        <div className="hw-panel">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px" }}>
+            <span style={{ fontSize: 13, color: "var(--muted)" }}>Mes:</span>
+            <select className="hw-input" style={{ width: "auto" }} value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
+              <option value="todos">Todos</option>
+              {meses.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <span style={{ fontSize: 13, marginLeft: "auto" }}>
+              Ingresos: <b>{money(totBruto)}</b> · Desc. de ley: <b>{money(totLey)}</b> · Neto pagado: <b>{money(totNeto)}</b>
+            </span>
+          </div>
+          <table className="hw-table">
+            <thead><tr><th>Fecha</th><th>Empleado</th><th>Período</th><th>Ingresos</th><th>Desc. ley</th><th>Otros desc.</th><th>Neto pagado</th><th>Método</th><th></th></tr></thead>
+            <tbody>
+              {[...pagosFiltrados].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((p) => {
+                const ley = (Number(p.afp) || 0) + (Number(p.sfs) || 0) + (Number(p.isr) || 0);
+                return (
+                  <tr key={p.id}>
+                    <td>{p.fecha}</td>
+                    <td>{p.empleadoNombre}</td>
+                    <td>{p.periodo}</td>
+                    <td>{money((Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0))}</td>
+                    <td>{ley ? money(ley) : "—"}</td>
+                    <td>{(Number(p.descuentos) || 0) - ley > 0.004 ? money((Number(p.descuentos) || 0) - ley) : "—"}</td>
+                    <td><b>{money(p.neto)}</b>{p.metodo === "Transferencia" && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Auto</span>}</td>
+                    <td>{p.metodo}</td>
+                    <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button className="hw-btn small" onClick={() => setRecibo(p)}>Recibo</button>
+                      <button className="hw-btn ghost small" onClick={() => abrirEditarPago(p)}><Edit2 size={13} /></button>
+                      <button className="hw-btn ghost small" onClick={() => eliminarPago(p)}><X size={13} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {pagosFiltrados.length === 0 && <tr><td colSpan={9} className="hw-empty">Aún no has registrado ningún pago de nómina</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {vista === "empleados" && (
+        <div className="hw-panel">
+          <table className="hw-table">
+            <thead><tr><th>Nombre</th><th>Cargo</th><th>Cédula</th><th>Sueldo</th><th>Pago</th><th>Desc. ley</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+              {[...empleados].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")).map((e) => (
+                <tr key={e.id} style={e.activo === false ? { opacity: 0.55 } : undefined}>
+                  <td>{e.nombre}</td>
+                  <td>{e.cargo || "—"}</td>
+                  <td>{e.cedula || "—"}</td>
+                  <td>{money(e.sueldo)}</td>
+                  <td>{e.periodicidad}</td>
+                  <td>{e.aplicaLey === false ? "No" : "Sí"}</td>
+                  <td>{e.activo === false ? "Inactivo" : "Activo"}</td>
+                  <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {e.activo !== false && <button className="hw-btn small" onClick={() => abrirNuevoPago(e)}>Pagar</button>}
+                    <button className="hw-btn ghost small" onClick={() => abrirEditarEmpleado(e)}><Edit2 size={13} /></button>
+                    <button className="hw-btn ghost small" onClick={() => alternarActivo(e)}>{e.activo === false ? "Activar" : "Desactivar"}</button>
+                    <button className="hw-btn ghost small" onClick={() => eliminarEmpleado(e)}><X size={13} /></button>
+                  </td>
+                </tr>
+              ))}
+              {empleados.length === 0 && <tr><td colSpan={8} className="hw-empty">Aún no has registrado ningún empleado</td></tr>}
+            </tbody>
+          </table>
+          {activos.length > 0 && <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>Si se pagara a todos los activos en un período: {money(nominaPorPeriodo)} (antes de descuentos)</div>}
+        </div>
+      )}
+
+      {vista === "regalia" && (
+        <div className="hw-panel">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px" }}>
+            <span style={{ fontSize: 13, color: "var(--muted)" }}>Año:</span>
+            <input className="hw-input" type="number" style={{ width: 100 }} value={anioRegalia} onChange={(e) => setAnioRegalia(e.target.value)} />
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Estimado: 1/12 del sueldo ordinario pagado en el año según los pagos registrados aquí. Se paga a más tardar el 20 de diciembre.</span>
+          </div>
+          <table className="hw-table">
+            <thead><tr><th>Empleado</th><th>Sueldo pagado en el año</th><th>Regalía pascual</th><th></th></tr></thead>
+            <tbody>
+              {regalias.map(({ e, devengado, regalia, yaPagada }) => (
+                <tr key={e.id}>
+                  <td>{e.nombre}</td>
+                  <td>{money(devengado)}</td>
+                  <td><b>{money(regalia)}</b></td>
+                  <td>{yaPagada ? <span className="hw-badge green">Pagada</span> : <button className="hw-btn small" disabled={regalia <= 0} onClick={() => abrirPagoRegalia(e, regalia, anioRegalia)}>Pagar regalía</button>}</td>
+                </tr>
+              ))}
+              {regalias.length === 0 && <tr><td colSpan={4} className="hw-empty">No hay empleados activos</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {openEmp && (
+        <div className="hw-modal-overlay" onClick={() => setOpenEmp(false)}>
+          <div className="hw-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">{editEmpId ? "Editar empleado" : "Nuevo empleado"}</div><button className="hw-close" onClick={() => setOpenEmp(false)}><X size={18} /></button></div>
+            <FieldRow label="Nombre completo *"><input className="hw-input" value={eNombre} onChange={(e) => setENombre(e.target.value)} /></FieldRow>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Cédula"><input className="hw-input" value={eCedula} onChange={(e) => setECedula(e.target.value)} /></FieldRow>
+              <FieldRow label="Teléfono"><input className="hw-input" value={eTelefono} onChange={(e) => setETelefono(e.target.value)} /></FieldRow>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Cargo"><input className="hw-input" value={eCargo} onChange={(e) => setECargo(e.target.value)} placeholder="Ej: Técnico instalador" /></FieldRow>
+              <FieldRow label="Fecha de ingreso"><input className="hw-input" type="date" value={eIngreso} onChange={(e) => setEIngreso(e.target.value)} /></FieldRow>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Se le paga"><select className="hw-input" value={ePeriodicidad} onChange={(e) => setEPeriodicidad(e.target.value)}>{PERIODICIDADES.map((x) => <option key={x}>{x}</option>)}</select></FieldRow>
+              <FieldRow label="Sueldo por período (RD$) *"><input className="hw-input" type="number" value={eSueldo} onChange={(e) => setESueldo(e.target.value)} placeholder="0.00" /></FieldRow>
+            </div>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, margin: "6px 0" }}>
+              <input type="checkbox" checked={eLey} onChange={(e) => setELey(e.target.checked)} />
+              Aplicar descuentos de ley (AFP, SFS e ISR)
+            </label>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardarEmpleado}>Guardar empleado</button>
+          </div>
+        </div>
+      )}
+
+      {openPago && (
+        <div className="hw-modal-overlay" onClick={() => setOpenPago(false)}>
+          <div className="hw-modal" style={{ maxWidth: 520, maxHeight: "92vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">{editPagoId ? "Editar pago" : "Registrar pago de nómina"}</div><button className="hw-close" onClick={() => setOpenPago(false)}><X size={18} /></button></div>
+            <FieldRow label="Empleado *">
+              <select className="hw-input" value={pEmpleadoId} onChange={(e) => elegirEmpleadoPago(e.target.value)}>
+                <option value="">Seleccionar...</option>
+                {empleados.filter((e) => e.activo !== false || e.id === pEmpleadoId).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </FieldRow>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Período que se paga *"><input className="hw-input" value={pPeriodo} onChange={(e) => setPPeriodo(e.target.value)} placeholder="Ej: 1 al 15 de noviembre" /></FieldRow>
+              <FieldRow label="Fecha de pago"><input className="hw-input" type="date" value={pFecha} onChange={(e) => setPFecha(e.target.value)} /></FieldRow>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Ingresos</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <FieldRow label="Sueldo del período *"><input className="hw-input" type="number" value={pSueldo} onChange={(e) => setPSueldo(e.target.value)} /></FieldRow>
+              <FieldRow label="Horas extras"><input className="hw-input" type="number" value={pHoras} onChange={(e) => setPHoras(e.target.value)} placeholder="0.00" /></FieldRow>
+              <FieldRow label="Bonos / comisión"><input className="hw-input" type="number" value={pBonos} onChange={(e) => setPBonos(e.target.value)} placeholder="0.00" /></FieldRow>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Descuentos de ley</div>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, margin: "2px 0 8px" }}>
+              <input type="checkbox" checked={pAuto} onChange={(e) => setPAuto(e.target.checked)} />
+              Calcular automáticamente (AFP 2.87 %, SFS 3.04 %, ISR según escala). Puede corregir los montos a mano.
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <FieldRow label="AFP"><input className="hw-input" type="number" value={pAfp} onChange={(e) => { setPAuto(false); setPAfp(e.target.value); }} placeholder="0.00" /></FieldRow>
+              <FieldRow label="SFS"><input className="hw-input" type="number" value={pSfs} onChange={(e) => { setPAuto(false); setPSfs(e.target.value); }} placeholder="0.00" /></FieldRow>
+              <FieldRow label="ISR"><input className="hw-input" type="number" value={pIsr} onChange={(e) => { setPAuto(false); setPIsr(e.target.value); }} placeholder="0.00" /></FieldRow>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Otros descuentos</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FieldRow label="Adelantos / préstamos"><input className="hw-input" type="number" value={pAdelantos} onChange={(e) => setPAdelantos(e.target.value)} placeholder="0.00" /></FieldRow>
+              <FieldRow label="Otros descuentos"><input className="hw-input" type="number" value={pOtros} onChange={(e) => setPOtros(e.target.value)} placeholder="0.00" /></FieldRow>
+            </div>
+            <FieldRow label="Método de pago">
+              <select className="hw-input" value={pMetodo} onChange={(e) => setPMetodo(e.target.value)}><option>Efectivo</option><option>Transferencia</option></select>
+            </FieldRow>
+            {pMetodo === "Transferencia" && (
+              <div style={{ fontSize: 12.5, color: "var(--muted)", margin: "2px 0 8px" }}>El neto se debitará automáticamente de tu cuenta bancaria predeterminada al guardar.</div>
+            )}
+            <FieldRow label="Nota (opcional)"><input className="hw-input" value={pNota} onChange={(e) => setPNota(e.target.value)} /></FieldRow>
+            <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+              <div>Ingresos: {money(ingresosForm)} · Descuentos: {money(descuentosForm)}</div>
+              <div style={{ fontSize: 15 }}><b>Neto a pagar:</b> {money(Math.max(netoForm, 0))}</div>
+            </div>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardarPago}>Guardar pago</button>
+          </div>
+        </div>
+      )}
+
+      {recibo && (
+        <div className="hw-modal-overlay" onClick={() => setRecibo(null)}>
+          <div className="hw-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">Recibo de pago</div><button className="hw-close" onClick={() => setRecibo(null)}><X size={18} /></button></div>
+            <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 12 }}>
+              <div><b>{recibo.empleadoNombre}</b></div>
+              <div>Período: {recibo.periodo}</div>
+              <div>Neto pagado: <b>{money(recibo.neto)}</b></div>
+            </div>
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => compartirRecibo(recibo)}><Share2 size={15} /> Compartir PDF</button>
+            <button className="hw-btn ghost" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => descargarRecibo(recibo)}><Download size={15} /> Guardar PDF</button>
           </div>
         </div>
       )}
