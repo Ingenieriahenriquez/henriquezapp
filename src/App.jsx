@@ -1156,6 +1156,7 @@ function Panel({ session }) {
   const [gastos, setGastos] = useSupabaseState("gastos");
   const [empleados, setEmpleados] = useSupabaseState("empleados");
   const [pagosNomina, setPagosNomina] = useSupabaseState("pagos_nomina");
+  const [registroHoras, setRegistroHoras] = useSupabaseState("registro_horas");
   const [cuentasBancarias, setCuentasBancarias] = useSupabaseState("cuentas_bancarias");
   const [movimientosBancarios, setMovimientosBancarios] = useSupabaseState("movimientos_bancarios");
   const negocio = negocioConfig[0] || BUSINESS;
@@ -1562,7 +1563,7 @@ function Panel({ session }) {
           <Gastos gastos={gastos} setGastos={setGastos} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
         <div style={{ display: tab === "nomina" ? "block" : "none" }}>
-          <Nomina empleados={empleados} setEmpleados={setEmpleados} pagosNomina={pagosNomina} setPagosNomina={setPagosNomina} negocio={negocio} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
+          <Nomina empleados={empleados} setEmpleados={setEmpleados} pagosNomina={pagosNomina} setPagosNomina={setPagosNomina} registroHoras={registroHoras} setRegistroHoras={setRegistroHoras} negocio={negocio} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
@@ -4635,9 +4636,40 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
   );
 }
 
-// ---------- NÓMINA: empleados, pagos con descuentos de ley, recibo en PDF y regalía pascual ----------
+// ---------- NÓMINA: empleados, pagos con descuentos de ley, préstamos, recibo en PDF y regalía pascual ----------
 const PERIODICIDADES = ["Semanal", "Quincenal", "Mensual"];
 const PERIODOS_POR_ANIO = { Semanal: 52, Quincenal: 24, Mensual: 12 };
+const MODALIDADES = ["Por hora", "Por día", "Semanal", "Quincenal", "Mensual"];
+const CARGOS_SUGERIDOS = ["Técnico", "Ayudante de técnico", "Colaborador"];
+// Pago por día por defecto según el cargo (se puede cambiar a mano en cada empleado)
+function tarifaDiaDe(cargo) {
+  const s = String(cargo || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  if (s.includes("ayudante")) return 1000;
+  if (s.includes("colaborador")) return 1200;
+  if (s.includes("tecnico")) return 1500;
+  return 0;
+}
+const periodicidadDe = (m) => (m === "Por hora" || m === "Por día" ? "Semanal" : (m || "Quincenal"));
+// Horas trabajadas entre una hora de entrada y una de salida ("HH:MM"), menos el descanso en minutos
+function horasEntre(entrada, salida, descansoMin) {
+  const m = (t) => { const [h, mi] = String(t || "").split(":"); return (parseInt(h, 10) || 0) * 60 + (parseInt(mi, 10) || 0); };
+  if (!entrada || !salida) return 0;
+  let dif = m(salida) - m(entrada);
+  if (dif < 0) dif += 24 * 60;
+  return Math.round(Math.max(dif - (Number(descansoMin) || 0), 0) / 60 * 100) / 100;
+}
+// Un día cuenta completo si se trabajaron 6 horas o más; si fueron menos, cuenta medio día.
+const diasDeHoras = (h) => (h >= 6 ? 1 : h > 0 ? 0.5 : 0);
+const lunesDeLaSemana = (fechaISO) => {
+  const d = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T12:00:00");
+  const dia = d.getDay() === 0 ? 7 : d.getDay();
+  d.setDate(d.getDate() - (dia - 1));
+  return d.toISOString().slice(0, 10);
+};
+const sumarDias = (fechaISO, dias) => { const d = new Date(fechaISO + "T12:00:00"); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); };
+const HORAS_MES = 190.64; // 23.83 días × 8 horas (base legal del salario por hora)
+const RECARGO_EXTRA = 1.35; // hora extra: se paga al 135 %
+const RECARGO_DOBLE = 2;    // hora doble: se paga al 200 %
 // Parámetros de ley (República Dominicana, 2026). Si cambian, se actualizan aquí.
 const LEY_NOMINA = {
   afp: 0.0287, sfs: 0.0304,
@@ -4652,7 +4684,7 @@ function isrAnual(base) {
   }
   return 0;
 }
-// Calcula AFP, SFS e ISR de un pago a partir de lo que se le paga al empleado en el período.
+// Calcula AFP, SFS e ISR de un pago a partir de lo que gana el empleado en el período.
 function calcularLey(bruto, periodicidad) {
   const ppy = PERIODOS_POR_ANIO[periodicidad] || 12;
   const mensual = (Number(bruto) || 0) * ppy / 12;
@@ -4661,12 +4693,29 @@ function calcularLey(bruto, periodicidad) {
   const anual = (mensual - afpM - sfsM) * 12;
   return { afp: r2(afpM * 12 / ppy), sfs: r2(sfsM * 12 / ppy), isr: r2(isrAnual(anual) / ppy) };
 }
+// Cálculo completo de un pago: ingresos, deducciones clasificadas y neto.
+function calcularPago(d) {
+  const n = (v) => Number(v) || 0;
+  const hora = n(d.hora);
+  const ordinario = d.ordinarioManual !== undefined && d.ordinarioManual !== "" ? r2(n(d.ordinarioManual)) : (d.modo === "dia" ? r2(n(d.dias) * n(d.tarifaDia)) : r2(n(d.hOrd) * hora));
+  const pagoExtras = r2(n(d.hExt) * hora * RECARGO_EXTRA);
+  const pagoDobles = r2(n(d.hDob) * hora * RECARGO_DOBLE);
+  const bruto = r2(ordinario + pagoExtras + pagoDobles);
+  const totalGanado = r2(bruto + n(d.bonos));
+  const ley = d.ley || (d.aplicaLey === false ? { afp: 0, sfs: 0, isr: 0 } : calcularLey(totalGanado, d.periodicidad));
+  const seguros = r2(n(ley.sfs) + n(ley.afp));
+  const impuestos = r2(n(ley.isr) + n(d.otrosImp));
+  const otrasDesc = r2(n(d.prestamo) + n(d.adelantos) + n(d.otros));
+  const totalDesc = r2(seguros + impuestos + otrasDesc);
+  return { ordinario, pagoExtras, pagoDobles, bruto, totalGanado, ley, seguros, impuestos, otrasDesc, totalDesc, neto: r2(totalGanado - totalDesc) };
+}
 const fmtRD = (n) => "RD$ " + Number(n || 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Recibo de pago en PDF dibujado directamente (texto), liviano y rápido.
 function generarReciboNominaPDF(p, emp, negocio) {
   const pdf = new jsPDF({ unit: "mm", format: "letter" });
   const W = 215.9, M = 18;
+  const num = (v) => Number(v) || 0;
   let y = 20;
   pdf.setFont("helvetica", "bold"); pdf.setFontSize(15); pdf.setTextColor(16, 24, 39);
   pdf.text(String(negocio?.nombre || ""), M, y);
@@ -4677,123 +4726,239 @@ function generarReciboNominaPDF(p, emp, negocio) {
   pdf.text("RECIBO DE PAGO DE NÓMINA", W - M, 20, { align: "right" });
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108);
   pdf.text("Fecha de pago: " + (p.fecha || ""), W - M, 26, { align: "right" });
-  y = Math.max(y, 32) + 4;
-  pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.6); pdf.line(M, y, W - M, y); y += 8;
+  y = Math.max(y, 32) + 2;
+  pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.6); pdf.line(M, y, W - M, y); y += 7;
 
-  pdf.setTextColor(16, 24, 39); pdf.setFontSize(10.5);
-  const dato = (et, val, x, yy) => { pdf.setFont("helvetica", "bold"); pdf.text(et, x, yy); pdf.setFont("helvetica", "normal"); pdf.text(String(val || "-"), x + 30, yy); };
-  dato("Empleado:", p.empleadoNombre, M, y); dato("Cédula:", emp?.cedula, 118, y); y += 6.5;
-  dato("Cargo:", emp?.cargo, M, y); dato("Período:", p.periodo, 118, y); y += 6.5;
-  dato("Método de pago:", p.metodo, M, y); y += 10;
+  pdf.setTextColor(16, 24, 39); pdf.setFontSize(10);
+  const dato = (et, val, x, yy) => { pdf.setFont("helvetica", "bold"); pdf.text(et, x, yy); pdf.setFont("helvetica", "normal"); pdf.text(String(val || "-"), x + 27, yy); };
+  dato("Cód. Emp.:", emp?.codigo, M, y); dato("Cédula:", emp?.cedula, 112, y); y += 6;
+  dato("Empleado:", p.empleadoNombre, M, y); dato("Departamento:", emp?.departamento, 112, y); y += 6;
+  dato("Cargo:", emp?.cargo, M, y); dato("Período:", p.periodo, 112, y); y += 6;
+  dato("Método de pago:", p.metodo, M, y); dato("Modalidad:", p.modalidad || emp?.periodicidad, 112, y); y += 8;
 
-  const fila = (txt, val, neg, bold) => {
-    pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(10.5);
-    pdf.text(txt, M + 3, y); pdf.text((neg ? "- " : "") + fmtRD(val), W - M - 3, y, { align: "right" }); y += 6.5;
+  const fila = (txt, val, neg, bold, sub) => {
+    pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(10); pdf.setTextColor(16, 24, 39);
+    pdf.text(txt, M + (sub ? 8 : 3), y); pdf.text((neg ? "- " : "") + fmtRD(val), W - M - 3, y, { align: "right" }); y += 5.8;
   };
   const cab = (txt) => {
-    pdf.setFillColor(238, 240, 244); pdf.rect(M, y - 4.8, W - 2 * M, 7, "F");
-    pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.setTextColor(16, 24, 39); pdf.text(txt, M + 3, y); y += 7;
+    pdf.setFillColor(238, 240, 244); pdf.rect(M, y - 4.6, W - 2 * M, 6.4, "F");
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(9.5); pdf.setTextColor(16, 24, 39); pdf.text(txt, M + 3, y); y += 6.6;
   };
+  const sep = () => { pdf.setDrawColor(190, 194, 202); pdf.setLineWidth(0.3); pdf.line(M, y - 3.2, W - M, y - 3.2); };
+  const sub = (txt) => { pdf.setFont("helvetica", "bold"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108); pdf.text(txt, M + 3, y); y += 5.4; };
+
+  const horasTxt = p.modalidad === "Por día" && num(p.dias) ? ` (${num(p.dias)} días × ${fmtRD(p.tarifaDia)})`
+    : p.modalidad === "Por hora" && num(p.horasOrdinarias) ? ` (${num(p.horasOrdinarias)} h × ${fmtRD(p.salarioHora)})`
+    : num(p.horasOrdinarias) ? ` (${num(p.horasOrdinarias)} h)` : "";
+  const ordinario = num(p.salarioOrdinario) || num(p.sueldoBase);
   cab("INGRESOS");
-  fila("Sueldo del período", p.sueldoBase);
-  if (Number(p.horasExtras)) fila("Horas extras", p.horasExtras);
-  if (Number(p.bonos)) fila("Bonos / comisiones", p.bonos);
-  if (!Number(p.horasExtras) && !Number(p.bonos) && Number(p.adicionales)) fila("Adicionales", p.adicionales);
-  const totalIng = (Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0);
-  pdf.setDrawColor(190, 194, 202); pdf.setLineWidth(0.3); pdf.line(M, y - 3, W - M, y - 3);
-  fila("Total ingresos", totalIng, false, true); y += 3;
-  cab("DESCUENTOS");
-  let hayDesc = false;
-  if (Number(p.afp)) { fila("AFP (pensiones) 2.87%", p.afp, true); hayDesc = true; }
-  if (Number(p.sfs)) { fila("SFS (seguro de salud) 3.04%", p.sfs, true); hayDesc = true; }
-  if (Number(p.isr)) { fila("ISR (impuesto sobre la renta)", p.isr, true); hayDesc = true; }
-  if (Number(p.adelantos)) { fila("Adelantos / préstamos", p.adelantos, true); hayDesc = true; }
-  if (Number(p.otrosDescuentos)) { fila("Otros descuentos", p.otrosDescuentos, true); hayDesc = true; }
-  if (!hayDesc && Number(p.descuentos)) { fila("Descuentos", p.descuentos, true); hayDesc = true; }
-  if (!hayDesc) fila("Sin descuentos", 0);
-  pdf.line(M, y - 3, W - M, y - 3);
-  fila("Total descuentos", p.descuentos, true, true); y += 4;
+  fila("Salario ordinario" + horasTxt, ordinario);
+  if (num(p.pagoExtras)) fila(`Horas extras (${num(p.horasExtras)} h al 135 %)`, p.pagoExtras);
+  if (num(p.pagoDobles)) fila(`Horas dobles (${num(p.horasDobles)} h al 200 %)`, p.pagoDobles);
+  const bruto = ordinario + num(p.pagoExtras) + num(p.pagoDobles);
+  sep(); fila("Sueldo bruto", bruto, false, true);
+  if (num(p.bonos)) fila("Bonos / comisiones", p.bonos);
+  const totalGanado = num(p.totalGanado) || (num(p.sueldoBase) + num(p.adicionales));
+  sep(); fila("Total ganado", totalGanado, false, true); y += 2;
+
+  cab("DEDUCCIONES");
+  let hay = false;
+  if (num(p.sfs) || num(p.afp)) {
+    sub("Seguros");
+    if (num(p.sfs)) fila("Seguro de salud ARS / SFS (3.04 %)", p.sfs, true, false, true);
+    if (num(p.afp)) fila("Seguro de pensión AFP (2.87 %)", p.afp, true, false, true);
+    hay = true;
+  }
+  if (num(p.isr) || num(p.otrosImpuestos)) {
+    sub("Impuestos");
+    if (num(p.isr)) fila("ISR (impuesto sobre la renta)", p.isr, true, false, true);
+    if (num(p.otrosImpuestos)) fila("Otros impuestos", p.otrosImpuestos, true, false, true);
+    hay = true;
+  }
+  if (num(p.prestamo) || num(p.adelantos) || num(p.otrosDescuentos)) {
+    sub("Otros descuentos");
+    if (num(p.prestamo)) fila("Préstamo", p.prestamo, true, false, true);
+    if (num(p.adelantos)) fila("Adelantos", p.adelantos, true, false, true);
+    if (num(p.otrosDescuentos)) fila("Otros descuentos", p.otrosDescuentos, true, false, true);
+    hay = true;
+  }
+  if (!hay) fila("Sin descuentos", 0);
+  sep(); fila("Total deducciones", p.descuentos, true, true); y += 3;
+
   pdf.setFillColor(253, 241, 230); pdf.setDrawColor(224, 121, 28); pdf.setLineWidth(0.6);
   pdf.roundedRect(M, y - 5.5, W - 2 * M, 11, 2, 2, "FD");
   pdf.setFont("helvetica", "bold"); pdf.setFontSize(12.5); pdf.setTextColor(16, 24, 39);
-  pdf.text("NETO PAGADO", M + 4, y + 1.5); pdf.text(fmtRD(p.neto), W - M - 4, y + 1.5, { align: "right" });
-  y += 14;
-  if (p.nota) { pdf.setFont("helvetica", "normal"); pdf.setFontSize(9.5); pdf.setTextColor(90, 96, 108); pdf.text("Nota: " + p.nota, M, y, { maxWidth: W - 2 * M }); y += 8; }
-  y = Math.max(y + 22, 200);
+  pdf.text("NETO GANADO", M + 4, y + 1.5); pdf.text(fmtRD(p.neto), W - M - 4, y + 1.5, { align: "right" });
+  y += 13;
+  if (num(p.prestamo) && emp && num(emp.prestamoSaldo) >= 0) {
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108);
+    pdf.text("Saldo pendiente del préstamo: " + fmtRD(emp.prestamoSaldo), M, y); y += 6;
+  }
+  if (p.nota) { pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108); pdf.text("Nota: " + p.nota, M, y, { maxWidth: W - 2 * M }); y += 7; }
+  y = Math.max(y + 16, 236);
   pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.3);
   pdf.line(M + 5, y, M + 70, y); pdf.line(W - M - 70, y, W - M - 5, y);
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(9.5); pdf.setTextColor(16, 24, 39);
   pdf.text("Firma del empleado", M + 37.5, y + 5, { align: "center" });
   pdf.text("Por la empresa", W - M - 37.5, y + 5, { align: "center" });
   pdf.setFontSize(8); pdf.setTextColor(140, 146, 156);
-  pdf.text("Recibo generado por " + (negocio?.nombre || ""), W / 2, 266, { align: "center" });
+  pdf.text("Recibo generado por " + (negocio?.nombre || ""), W / 2, 270, { align: "center" });
   return pdf;
 }
 
-function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
+// Pequeño bloque de resumen con etiqueta/valor para los formularios
+function FilaResumen({ etiqueta, valor, negativo, fuerte, sangria }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontWeight: fuerte ? 700 : 400, paddingLeft: sangria ? 14 : 0 }}>
+      <span>{etiqueta}</span><span>{negativo && Number(valor) ? "- " : ""}{money(valor)}</span>
+    </div>
+  );
+}
+function SeccionNomina({ titulo, children }) {
+  return (
+    <div style={{ border: "1px solid var(--border, #E4E7EC)", borderRadius: 10, padding: "10px 12px", margin: "10px 0" }}>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--muted)" }}>{titulo}</div>
+      {children}
+    </div>
+  );
+}
+
+function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registroHoras = [], setRegistroHoras, negocio, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const hoy = new Date().toISOString().slice(0, 10);
+  const n = (v) => Number(v) || 0;
   const [vista, setVista] = useState("pagos");
   const [filtroMes, setFiltroMes] = useState("todos");
   const [anioRegalia, setAnioRegalia] = useState(String(new Date().getFullYear()));
-  // Empleado
+  // ----- Empleado -----
   const [openEmp, setOpenEmp] = useState(false);
   const [editEmpId, setEditEmpId] = useState(null);
+  const [eCodigo, setECodigo] = useState("");
   const [eNombre, setENombre] = useState("");
   const [eCedula, setECedula] = useState("");
+  const [eDepto, setEDepto] = useState("");
   const [eCargo, setECargo] = useState("");
   const [eTelefono, setETelefono] = useState("");
-  const [eSueldo, setESueldo] = useState("");
-  const [ePeriodicidad, setEPeriodicidad] = useState("Quincenal");
   const [eIngreso, setEIngreso] = useState(hoy);
+  const [eModalidad, setEModalidad] = useState("Quincenal");
+  const ePeriodicidad = periodicidadDe(eModalidad);
+  const [ePagoDia, setEPagoDia] = useState("");
+  const [eMensual, setEMensual] = useState("");
+  const [eHora, setEHora] = useState("");
+  const [eHOrd, setEHOrd] = useState("");
+  const [eHExt, setEHExt] = useState("");
+  const [eHDob, setEHDob] = useState("");
   const [eLey, setELey] = useState(true);
-  // Pago
+  const [eOtrosImp, setEOtrosImp] = useState("");
+  const [ePrestamo, setEPrestamo] = useState(false);
+  const [ePrestMonto, setEPrestMonto] = useState("");
+  const [ePrestCuota, setEPrestCuota] = useState("");
+  const [ePrestSaldo, setEPrestSaldo] = useState("");
+  // ----- Pago -----
   const [openPago, setOpenPago] = useState(false);
   const [editPagoId, setEditPagoId] = useState(null);
   const [pEmpleadoId, setPEmpleadoId] = useState("");
+  const [pModalidad, setPModalidad] = useState("Quincenal");
+  const [pDias, setPDias] = useState("");
+  const [pTarifaDia, setPTarifaDia] = useState("");
+  const [pDesde, setPDesde] = useState("");
+  const [pHasta, setPHasta] = useState("");
   const [pPeriodo, setPPeriodo] = useState("");
   const [pFecha, setPFecha] = useState(hoy);
-  const [pSueldo, setPSueldo] = useState("");
-  const [pHoras, setPHoras] = useState("");
+  const [pHora, setPHora] = useState("");
+  const [pHOrd, setPHOrd] = useState("");
+  const [pHExt, setPHExt] = useState("");
+  const [pHDob, setPHDob] = useState("");
+  const [pManual, setPManual] = useState("");     // monto fijo (regalía): reemplaza horas × salario por hora
+  const [pEsMonto, setPEsMonto] = useState(false);
   const [pBonos, setPBonos] = useState("");
   const [pAuto, setPAuto] = useState(true);
   const [pAfp, setPAfp] = useState("");
   const [pSfs, setPSfs] = useState("");
   const [pIsr, setPIsr] = useState("");
+  const [pOtrosImp, setPOtrosImp] = useState("");
+  const [pPrestamo, setPPrestamo] = useState("");
   const [pAdelantos, setPAdelantos] = useState("");
   const [pOtros, setPOtros] = useState("");
   const [pMetodo, setPMetodo] = useState("Efectivo");
   const [pNota, setPNota] = useState("");
   const [recibo, setRecibo] = useState(null);
+  // ----- Registro de horas (entrada / salida) -----
+  const lunesActual = lunesDeLaSemana(hoy);
+  const [hDesde, setHDesde] = useState(lunesActual);
+  const [hHasta, setHHasta] = useState(sumarDias(lunesActual, 6));
+  const [hFiltroEmp, setHFiltroEmp] = useState("todos");
+  const [editHoraId, setEditHoraId] = useState(null);
+  const [rEmpleadoId, setREmpleadoId] = useState("");
+  const [rFecha, setRFecha] = useState(hoy);
+  const [rEntrada, setREntrada] = useState("08:00");
+  const [rSalida, setRSalida] = useState("17:00");
+  const [rDescanso, setRDescanso] = useState("0");
+  const [rNota, setRNota] = useState("");
 
-  const n = (v) => Number(v) || 0;
+  // ----- Cálculo en vivo: formulario de empleado -----
+  const eEsHora = eModalidad === "Por hora";
+  const eEsDia = eModalidad === "Por día";
+  const ppyE = PERIODOS_POR_ANIO[ePeriodicidad] || 12;
+  const horaAutoE = eEsHora ? n(ePagoDia) / 8 : n(eMensual) / HORAS_MES;
+  const horaE = eHora !== "" ? n(eHora) : horaAutoE;
+  const hOrdAutoE = r2(HORAS_MES * 12 / ppyE);
+  const hOrdE = eEsHora ? 44 : (eHOrd !== "" ? n(eHOrd) : hOrdAutoE);
+  const cuotaE = ePrestamo ? Math.min(n(ePrestCuota), ePrestSaldo !== "" ? n(ePrestSaldo) : n(ePrestMonto)) : 0;
+  const calcE = calcularPago({ modo: eEsDia ? "dia" : "horas", dias: 6, tarifaDia: n(ePagoDia), hora: horaE, hOrd: hOrdE, hExt: eHExt, hDob: eHDob, periodicidad: ePeriodicidad, aplicaLey: eLey, otrosImp: eOtrosImp, prestamo: cuotaE });
+
+  // ----- Cálculo en vivo: formulario de pago -----
   const empPago = empleados.find((e) => e.id === pEmpleadoId);
-  const ingresosForm = n(pSueldo) + n(pHoras) + n(pBonos);
-  const descLeyForm = n(pAfp) + n(pSfs) + n(pIsr);
-  const descuentosForm = descLeyForm + n(pAdelantos) + n(pOtros);
-  const netoForm = r2(ingresosForm - descuentosForm);
+  const pEsDia = pModalidad === "Por día";
+  const pEsHora = pModalidad === "Por hora";
+  const leyPago = { afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr) };
+  const calcP = calcularPago({ modo: pEsDia ? "dia" : "horas", dias: pDias, tarifaDia: pTarifaDia, hora: pHora, hOrd: pHOrd, hExt: pHExt, hDob: pHDob, ordinarioManual: pEsMonto ? pManual : undefined, bonos: pBonos, ley: leyPago, otrosImp: pOtrosImp, prestamo: pPrestamo, adelantos: pAdelantos, otros: pOtros });
 
   // Recalcula AFP/SFS/ISR automáticamente mientras no se hayan escrito a mano.
   useEffect(() => {
     if (!openPago || !pAuto) return;
     if (!empPago || empPago.aplicaLey === false) { setPAfp(""); setPSfs(""); setPIsr(""); return; }
-    const l = calcularLey(ingresosForm, empPago.periodicidad);
-    setPAfp(String(l.afp)); setPSfs(String(l.sfs)); setPIsr(String(l.isr));
-  }, [openPago, pAuto, pEmpleadoId, pSueldo, pHoras, pBonos]);
+    const base = calcularPago({ modo: pEsDia ? "dia" : "horas", dias: pDias, tarifaDia: pTarifaDia, hora: pHora, hOrd: pHOrd, hExt: pHExt, hDob: pHDob, ordinarioManual: pEsMonto ? pManual : undefined, bonos: pBonos, aplicaLey: true, periodicidad: periodicidadDe(pModalidad) });
+    setPAfp(String(base.ley.afp)); setPSfs(String(base.ley.sfs)); setPIsr(String(base.ley.isr));
+  }, [openPago, pAuto, pEmpleadoId, pModalidad, pHora, pHOrd, pHExt, pHDob, pDias, pTarifaDia, pManual, pEsMonto, pBonos]);
 
+  // ================= Empleado =================
+  function siguienteCodigo() {
+    const nums = empleados.map((e) => parseInt(String(e.codigo || "").replace(/\D/g, ""), 10)).filter((x) => !isNaN(x));
+    return "EMP-" + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
+  }
   function abrirNuevoEmpleado() {
-    setEditEmpId(null); setENombre(""); setECedula(""); setECargo(""); setETelefono(""); setESueldo("");
-    setEPeriodicidad("Quincenal"); setEIngreso(hoy); setELey(true);
+    setEditEmpId(null); setECodigo(siguienteCodigo()); setENombre(""); setECedula(""); setEDepto(""); setECargo(""); setETelefono("");
+    setEIngreso(hoy); setEModalidad("Quincenal"); setEPagoDia(""); setEMensual(""); setEHora(""); setEHOrd(""); setEHExt(""); setEHDob("");
+    setELey(true); setEOtrosImp(""); setEPrestamo(false); setEPrestMonto(""); setEPrestCuota(""); setEPrestSaldo("");
     setOpenEmp(true);
   }
   function abrirEditarEmpleado(e) {
-    setEditEmpId(e.id); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setECargo(e.cargo || ""); setETelefono(e.telefono || "");
-    setESueldo(String(e.sueldo ?? "")); setEPeriodicidad(e.periodicidad || "Quincenal"); setEIngreso(e.fechaIngreso || hoy); setELey(e.aplicaLey !== false);
+    setEditEmpId(e.id); setECodigo(e.codigo || ""); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setEDepto(e.departamento || "");
+    setECargo(e.cargo || ""); setETelefono(e.telefono || ""); setEIngreso(e.fechaIngreso || hoy); setEModalidad(e.modalidad || e.periodicidad || "Quincenal"); setEPagoDia(e.pagoDia ? String(e.pagoDia) : "");
+    const mensual = e.salarioMensual != null ? e.salarioMensual : r2(n(e.sueldo) * (PERIODOS_POR_ANIO[e.periodicidad] || 12) / 12);
+    setEMensual(String(mensual ?? "")); setEHora(e.salarioHora ? String(e.salarioHora) : "");
+    setEHOrd(e.horasOrdinarias ? String(e.horasOrdinarias) : ""); setEHExt(e.horasExtras ? String(e.horasExtras) : ""); setEHDob(e.horasDobles ? String(e.horasDobles) : "");
+    setELey(e.aplicaLey !== false); setEOtrosImp(e.otrosImpuestos ? String(e.otrosImpuestos) : "");
+    const tiene = n(e.prestamoMonto) > 0 || n(e.prestamoSaldo) > 0;
+    setEPrestamo(tiene); setEPrestMonto(e.prestamoMonto ? String(e.prestamoMonto) : ""); setEPrestCuota(e.prestamoCuota ? String(e.prestamoCuota) : ""); setEPrestSaldo(e.prestamoSaldo != null && tiene ? String(e.prestamoSaldo) : "");
     setOpenEmp(true);
   }
   function guardarEmpleado() {
-    if (!eNombre.trim()) { alert("Escribe el nombre del empleado."); return; }
-    if (!eSueldo || Number(eSueldo) <= 0) { alert("Escribe el sueldo (el monto que se le paga en cada período)."); return; }
-    const datos = { nombre: eNombre.trim(), cedula: eCedula.trim(), cargo: eCargo.trim(), telefono: eTelefono.trim(), sueldo: Number(eSueldo), periodicidad: ePeriodicidad, fechaIngreso: eIngreso, aplicaLey: eLey };
+    if (!eNombre.trim()) { alert("Escribe el nombre completo del empleado."); return; }
+    if (eEsHora && !(eHora !== "" ? n(eHora) > 0 : n(ePagoDia) > 0)) { alert("Escribe el pago por hora (o el pago por día, y el sistema lo divide entre 8)."); return; }
+    if (eEsDia && n(ePagoDia) <= 0) { alert("Escribe el pago por día."); return; }
+    if (!eEsHora && !eEsDia && (!eMensual || n(eMensual) <= 0)) { alert("Escribe el salario mensual."); return; }
+    if (ePrestamo && n(ePrestMonto) <= 0) { alert("Escribe el monto del préstamo, o desmarca la opción de préstamo."); return; }
+    if (ePrestamo && n(ePrestCuota) <= 0) { alert("Escribe la cuota que se le descontará en cada pago."); return; }
+    const saldo = ePrestamo ? (ePrestSaldo !== "" ? n(ePrestSaldo) : n(ePrestMonto)) : 0;
+    const datos = {
+      codigo: eCodigo.trim(), nombre: eNombre.trim(), cedula: eCedula.trim(), departamento: eDepto.trim(), cargo: eCargo.trim(), telefono: eTelefono.trim(),
+      fechaIngreso: eIngreso, modalidad: eModalidad, periodicidad: ePeriodicidad, pagoDia: n(ePagoDia),
+      salarioMensual: eEsHora || eEsDia ? 0 : n(eMensual), salarioHora: eEsHora ? r2(horaE * 100) / 100 : (eHora !== "" ? n(eHora) : 0),
+      horasOrdinarias: eEsHora || eEsDia ? 0 : (eHOrd !== "" ? n(eHOrd) : 0), horasExtras: eEsHora || eEsDia ? 0 : n(eHExt), horasDobles: eEsHora || eEsDia ? 0 : n(eHDob),
+      sueldo: eEsHora || eEsDia ? 0 : r2(n(eMensual) * 12 / ppyE), aplicaLey: eLey, otrosImpuestos: n(eOtrosImp),
+      prestamoMonto: ePrestamo ? n(ePrestMonto) : 0, prestamoCuota: ePrestamo ? n(ePrestCuota) : 0, prestamoSaldo: saldo,
+    };
     if (editEmpId) {
       setEmpleados(empleados.map((e) => (e.id === editEmpId ? { ...e, ...datos } : e)));
     } else {
@@ -4810,39 +4975,81 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
     setEmpleados(empleados.filter((x) => x.id !== e.id));
   }
 
-  function limpiarPago() {
-    setPHoras(""); setPBonos(""); setPAdelantos(""); setPOtros(""); setPAfp(""); setPSfs(""); setPIsr(""); setPNota("");
-    setPFecha(hoy); setPMetodo("Efectivo");
+  // ================= Pago =================
+  // Suma las horas / días registrados (sin pagar) de un empleado entre dos fechas
+  function resumenRegistro(empId, desde, hasta, pagoIdPermitido) {
+    const regs = registroHoras.filter((r) => r.empleadoId === empId && r.fecha >= desde && r.fecha <= hasta && (!r.pagoId || r.pagoId === pagoIdPermitido));
+    const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0));
+    const dias = regs.reduce((s2, r) => s2 + diasDeHoras(n(r.horas)), 0);
+    return { regs, horas, dias };
   }
-  function abrirNuevoPago(emp) {
-    setEditPagoId(null); limpiarPago();
+  function cargarEmpleadoEnPago(emp, rango) {
+    const modalidad = emp.modalidad || emp.periodicidad || "Quincenal";
+    setPModalidad(modalidad);
+    setPOtrosImp(emp.otrosImpuestos ? String(emp.otrosImpuestos) : "");
+    const cuota = n(emp.prestamoSaldo) > 0 ? Math.min(n(emp.prestamoCuota), n(emp.prestamoSaldo)) : 0;
+    setPPrestamo(cuota ? String(r2(cuota)) : "");
+    setPHExt(""); setPHDob("");
+    if (modalidad === "Por hora" || modalidad === "Por día") {
+      const desde = rango?.desde || lunesActual, hasta = rango?.hasta || sumarDias(lunesActual, 6);
+      setPDesde(desde); setPHasta(hasta);
+      const res = resumenRegistro(emp.id, desde, hasta);
+      const tarifaDia = n(emp.pagoDia) > 0 ? n(emp.pagoDia) : tarifaDiaDe(emp.cargo);
+      setPTarifaDia(String(tarifaDia)); setPDias(String(res.dias));
+      setPHora(String(n(emp.salarioHora) > 0 ? n(emp.salarioHora) : r2(tarifaDia / 8 * 100) / 100)); setPHOrd(String(res.horas));
+      setPPeriodo(`Semana del ${desde} al ${hasta}`);
+    } else {
+      const ppy = PERIODOS_POR_ANIO[periodicidadDe(modalidad)] || 12;
+      const mensual = emp.salarioMensual != null ? n(emp.salarioMensual) : n(emp.sueldo) * ppy / 12;
+      const hora = n(emp.salarioHora) > 0 ? n(emp.salarioHora) : r2(mensual / HORAS_MES * 10000) / 10000;
+      setPHora(String(hora));
+      setPHOrd(String(n(emp.horasOrdinarias) > 0 ? emp.horasOrdinarias : r2(HORAS_MES * 12 / ppy)));
+      setPHExt(emp.horasExtras ? String(emp.horasExtras) : ""); setPHDob(emp.horasDobles ? String(emp.horasDobles) : "");
+      setPDias(""); setPTarifaDia(""); setPDesde(""); setPHasta("");
+    }
+  }
+  function recargarDelRegistro() {
+    if (!empPago) return;
+    const res = resumenRegistro(empPago.id, pDesde, pHasta, editPagoId);
+    setPDias(String(res.dias)); setPHOrd(String(res.horas));
+    if (!pPeriodo.trim()) setPPeriodo(`Semana del ${pDesde} al ${pHasta}`);
+  }
+  function limpiarPago() {
+    setPHora(""); setPHOrd(""); setPHExt(""); setPHDob(""); setPManual(""); setPEsMonto(false); setPBonos(""); setPAfp(""); setPSfs(""); setPIsr("");
+    setPOtrosImp(""); setPPrestamo(""); setPAdelantos(""); setPOtros(""); setPNota(""); setPFecha(hoy); setPMetodo("Efectivo"); setPPeriodo(""); setPDias(""); setPTarifaDia(""); setPDesde(""); setPHasta(""); setPModalidad("Quincenal");
+  }
+  function abrirNuevoPago(emp, rango) {
+    setEditPagoId(null); limpiarPago(); setPAuto(true);
     setPEmpleadoId(emp ? emp.id : "");
-    setPSueldo(emp ? String(emp.sueldo ?? "") : "");
-    setPPeriodo(""); setPAuto(true);
+    if (emp) { cargarEmpleadoEnPago(emp, rango); setPAuto(emp.aplicaLey !== false); }
     setOpenPago(true);
   }
   function abrirPagoRegalia(emp, monto, anio) {
-    setEditPagoId(null); limpiarPago();
-    setPEmpleadoId(emp.id); setPSueldo(String(r2(monto))); setPPeriodo(`Regalía pascual ${anio}`);
-    setPAuto(false); setPNota("Regalía pascual (1/12 del salario ordinario del año)");
+    setEditPagoId(null); limpiarPago(); setPAuto(false);
+    setPEmpleadoId(emp.id); setPEsMonto(true); setPManual(String(r2(monto))); setPPeriodo(`Regalía pascual ${anio}`);
+    setPNota("Regalía pascual (1/12 del salario ordinario del año)");
     setOpenPago(true);
   }
   function abrirEditarPago(p) {
     setEditPagoId(p.id); setPAuto(false);
     setPEmpleadoId(p.empleadoId || ""); setPPeriodo(p.periodo || ""); setPFecha(p.fecha || hoy);
-    setPSueldo(String(p.sueldoBase ?? ""));
-    const tieneDetalle = p.horasExtras != null || p.bonos != null;
-    setPHoras(p.horasExtras ? String(p.horasExtras) : ""); setPBonos(tieneDetalle ? (p.bonos ? String(p.bonos) : "") : (p.adicionales ? String(p.adicionales) : ""));
-    setPAfp(p.afp ? String(p.afp) : ""); setPSfs(p.sfs ? String(p.sfs) : ""); setPIsr(p.isr ? String(p.isr) : "");
-    const tieneDesc = p.adelantos != null || p.otrosDescuentos != null || p.afp != null;
-    setPAdelantos(p.adelantos ? String(p.adelantos) : ""); setPOtros(tieneDesc ? (p.otrosDescuentos ? String(p.otrosDescuentos) : "") : (p.descuentos ? String(p.descuentos) : ""));
+    const porDia = p.modalidad === "Por día";
+    const porHoras = n(p.salarioHora) > 0 && !porDia;
+    setPModalidad(p.modalidad || "Quincenal"); setPDias(p.dias ? String(p.dias) : ""); setPTarifaDia(p.tarifaDia ? String(p.tarifaDia) : "");
+    setPDesde(p.desde || ""); setPHasta(p.hasta || "");
+    setPEsMonto(!porHoras && !porDia); setPManual(!porHoras && !porDia ? String(p.salarioOrdinario || p.sueldoBase || "") : "");
+    setPHora(porHoras ? String(p.salarioHora) : ""); setPHOrd(p.horasOrdinarias ? String(p.horasOrdinarias) : "");
+    setPHExt(p.horasExtras ? String(p.horasExtras) : ""); setPHDob(p.horasDobles ? String(p.horasDobles) : "");
+    setPBonos(p.bonos ? String(p.bonos) : "");
+    setPAfp(p.afp ? String(p.afp) : ""); setPSfs(p.sfs ? String(p.sfs) : ""); setPIsr(p.isr ? String(p.isr) : ""); setPOtrosImp(p.otrosImpuestos ? String(p.otrosImpuestos) : "");
+    setPPrestamo(p.prestamo ? String(p.prestamo) : ""); setPAdelantos(p.adelantos ? String(p.adelantos) : ""); setPOtros(p.otrosDescuentos ? String(p.otrosDescuentos) : "");
     setPMetodo(p.metodo || "Efectivo"); setPNota(p.nota || "");
     setOpenPago(true);
   }
   function elegirEmpleadoPago(id) {
     setPEmpleadoId(id);
     const emp = empleados.find((e) => e.id === id);
-    if (emp && !editPagoId) setPSueldo(String(emp.sueldo ?? ""));
+    if (emp && !editPagoId) { setPEsMonto(false); setPManual(""); cargarEmpleadoEnPago(emp); setPAuto(emp.aplicaLey !== false); }
   }
 
   function sincronizarMovimiento(pagoId, metodoFinal, montoFinal, descripcionFinal) {
@@ -4866,27 +5073,48 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
       setMovimientosBancarios(movimientosBancarios.filter((m) => m.id !== movExistente.id));
     }
   }
+  // Ajusta el saldo del préstamo del empleado cuando se guarda, edita o elimina un pago con cuota.
+  function ajustarSaldoPrestamo(empleadoId, cuotaAnterior, cuotaNueva) {
+    const diferencia = n(cuotaAnterior) - n(cuotaNueva);
+    if (!diferencia) return;
+    setEmpleados((prev) => prev.map((e) => {
+      if (e.id !== empleadoId) return e;
+      const tope = n(e.prestamoMonto) || Infinity;
+      return { ...e, prestamoSaldo: Math.min(Math.max(r2(n(e.prestamoSaldo) + diferencia), 0), tope) };
+    }));
+  }
 
   function guardarPago() {
     const emp = empleados.find((e) => e.id === pEmpleadoId);
     if (!emp) { alert("Elige el empleado."); return; }
     if (!pPeriodo.trim()) { alert("Escribe el período que se está pagando (por ejemplo: 1 al 15 de noviembre)."); return; }
-    if (!pSueldo || n(pSueldo) <= 0) { alert("Escribe el sueldo del período."); return; }
-    if (netoForm < 0) { alert("Los descuentos no pueden ser mayores que lo que se le paga."); return; }
+    if (calcP.ordinario <= 0) { alert(pEsMonto ? "Escribe el monto a pagar." : pEsDia ? "Revisa los días trabajados y el pago por día: el salario no puede ser cero." : "Revisa el salario por hora y las horas ordinarias: el salario ordinario no puede ser cero."); return; }
+    if (calcP.neto < 0) { alert("Los descuentos no pueden ser mayores que lo que gana el empleado."); return; }
+    if (n(pPrestamo) > 0 && !editPagoId && n(pPrestamo) > n(emp.prestamoSaldo) + 0.009) { alert("La cuota del préstamo es mayor que el saldo pendiente (" + money(emp.prestamoSaldo) + ")."); return; }
     const datos = {
       empleadoId: emp.id, empleadoNombre: emp.nombre, periodo: pPeriodo.trim(), fecha: pFecha,
-      sueldoBase: n(pSueldo), horasExtras: n(pHoras), bonos: n(pBonos), adicionales: r2(n(pHoras) + n(pBonos)),
-      afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr), adelantos: n(pAdelantos), otrosDescuentos: n(pOtros), descuentos: r2(descuentosForm),
-      neto: netoForm, metodo: pMetodo, nota: pNota.trim(),
+      modalidad: pEsMonto ? "Regalía" : pModalidad, dias: pEsDia ? n(pDias) : 0, tarifaDia: pEsDia ? n(pTarifaDia) : 0,
+      salarioHora: pEsMonto || pEsDia ? 0 : n(pHora), horasOrdinarias: pEsMonto || pEsDia ? 0 : n(pHOrd), horasExtras: n(pHExt), horasDobles: n(pHDob),
+      salarioOrdinario: calcP.ordinario, sueldoBase: calcP.ordinario, pagoExtras: calcP.pagoExtras, pagoDobles: calcP.pagoDobles,
+      bonos: n(pBonos), adicionales: r2(calcP.pagoExtras + calcP.pagoDobles + n(pBonos)), totalGanado: calcP.totalGanado,
+      afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr), otrosImpuestos: n(pOtrosImp), prestamo: n(pPrestamo), adelantos: n(pAdelantos), otrosDescuentos: n(pOtros),
+      descuentos: calcP.totalDesc, neto: calcP.neto, metodo: pMetodo, nota: pNota.trim(),
     };
     const desc = `Nómina: ${emp.nombre} · ${pPeriodo.trim()}`;
     if (editPagoId) {
+      const anterior = pagosNomina.find((p) => p.id === editPagoId);
       setPagosNomina(pagosNomina.map((p) => (p.id === editPagoId ? { ...p, ...datos } : p)));
-      sincronizarMovimiento(editPagoId, pMetodo, netoForm, desc);
+      sincronizarMovimiento(editPagoId, pMetodo, calcP.neto, desc);
+      ajustarSaldoPrestamo(emp.id, anterior?.prestamo, datos.prestamo);
     } else {
       const nuevo = { id: uid(), ...datos, creadoEn: new Date().toISOString() };
       setPagosNomina([...pagosNomina, nuevo]);
-      sincronizarMovimiento(nuevo.id, pMetodo, netoForm, desc);
+      // Marca como pagadas las horas del registro que se incluyeron en este pago
+      if (setRegistroHoras && !pEsMonto && (pEsHora || pEsDia) && pDesde && pHasta) {
+        setRegistroHoras((prev) => prev.map((r) => (r.empleadoId === emp.id && r.fecha >= pDesde && r.fecha <= pHasta && !r.pagoId ? { ...r, pagoId: nuevo.id } : r)));
+      }
+      sincronizarMovimiento(nuevo.id, pMetodo, calcP.neto, desc);
+      ajustarSaldoPrestamo(emp.id, 0, datos.prestamo);
     }
     setOpenPago(false); setEditPagoId(null);
   }
@@ -4894,7 +5122,54 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
     if (!window.confirm(`¿Eliminar el pago de ${p.empleadoNombre} (${p.periodo})?`)) return;
     setPagosNomina(pagosNomina.filter((x) => x.id !== p.id));
     if (setMovimientosBancarios) setMovimientosBancarios(movimientosBancarios.filter((m) => m.gastoId !== "nom-" + p.id));
+    if (n(p.prestamo) > 0) ajustarSaldoPrestamo(p.empleadoId, p.prestamo, 0);
+    if (setRegistroHoras) setRegistroHoras((prev) => prev.map((r) => (r.pagoId === p.id ? { ...r, pagoId: "" } : r)));
   }
+
+  // ================= Registro de horas (entrada / salida) =================
+  const horasRegistro = horasEntre(rEntrada, rSalida, rDescanso);
+  function limpiarFormHora() {
+    setEditHoraId(null); setRFecha(hoy); setREntrada("08:00"); setRSalida("17:00"); setRDescanso("0"); setRNota("");
+  }
+  function guardarHora() {
+    const emp = empleados.find((e) => e.id === rEmpleadoId);
+    if (!emp) { alert("Elige el empleado."); return; }
+    if (!rFecha) { alert("Elige la fecha."); return; }
+    if (!rEntrada || !rSalida) { alert("Escribe la hora de entrada y la de salida."); return; }
+    if (horasRegistro <= 0) { alert("Las horas trabajadas dan cero. Revisa la entrada, la salida y el descanso."); return; }
+    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: rFecha, entrada: rEntrada, salida: rSalida, descansoMin: n(rDescanso), horas: horasRegistro, nota: rNota.trim() };
+    if (editHoraId) {
+      setRegistroHoras(registroHoras.map((r) => (r.id === editHoraId ? { ...r, ...datos } : r)));
+    } else {
+      if (registroHoras.some((r) => r.empleadoId === emp.id && r.fecha === rFecha) && !window.confirm(`${emp.nombre} ya tiene horas registradas el ${rFecha}. ¿Agregar otra entrada ese día?`)) return;
+      setRegistroHoras([...registroHoras, { id: uid(), ...datos, pagoId: "", creadoEn: new Date().toISOString() }]);
+    }
+    limpiarFormHora();
+  }
+  function abrirEditarHora(r) {
+    if (r.pagoId) { alert("Estas horas ya fueron pagadas. Si necesita corregirlas, elimine primero el pago correspondiente."); return; }
+    setEditHoraId(r.id); setREmpleadoId(r.empleadoId); setRFecha(r.fecha); setREntrada(r.entrada || ""); setRSalida(r.salida || ""); setRDescanso(String(r.descansoMin || 0)); setRNota(r.nota || "");
+  }
+  function eliminarHora(r) {
+    if (r.pagoId) { alert("Estas horas ya fueron pagadas. Elimine primero el pago si necesita quitarlas."); return; }
+    if (!window.confirm(`¿Eliminar el registro de ${r.empleadoNombre} del ${r.fecha}?`)) return;
+    setRegistroHoras(registroHoras.filter((x) => x.id !== r.id));
+  }
+  const registrosRango = registroHoras
+    .filter((r) => r.fecha >= hDesde && r.fecha <= hHasta && (hFiltroEmp === "todos" || r.empleadoId === hFiltroEmp))
+    .sort((a, b) => (a.fecha + (a.entrada || "")).localeCompare(b.fecha + (b.entrada || "")));
+  // Resumen por empleado: lo que está pendiente de pagar en el rango
+  const resumenPorEmpleado = empleados.filter((e) => e.activo !== false).map((e) => {
+    const regs = registroHoras.filter((r) => r.empleadoId === e.id && r.fecha >= hDesde && r.fecha <= hHasta && !r.pagoId);
+    const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0));
+    const dias = regs.reduce((s2, r) => s2 + diasDeHoras(n(r.horas)), 0);
+    const modalidad = e.modalidad || e.periodicidad || "Quincenal";
+    const tarifaDia = n(e.pagoDia) > 0 ? n(e.pagoDia) : tarifaDiaDe(e.cargo);
+    const tarifaHora = n(e.salarioHora) > 0 ? n(e.salarioHora) : tarifaDia / 8;
+    const monto = modalidad === "Por día" ? r2(dias * tarifaDia) : modalidad === "Por hora" ? r2(horas * tarifaHora) : 0;
+    return { e, regs, horas, dias, modalidad, monto };
+  }).filter((x) => x.regs.length > 0 || x.modalidad === "Por hora" || x.modalidad === "Por día");
+  const totalPendientePagar = resumenPorEmpleado.reduce((s2, x) => s2 + x.monto, 0);
 
   function descargarRecibo(p) {
     const pdf = generarReciboNominaPDF(p, empleados.find((e) => e.id === p.empleadoId), negocio);
@@ -4916,18 +5191,21 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
   const nominaPorPeriodo = activos.reduce((s, e) => s + (Number(e.sueldo) || 0), 0);
   const meses = [...new Set(pagosNomina.map((p) => (p.fecha || "").slice(0, 7)).filter(Boolean))].sort().reverse();
   const pagosFiltrados = filtroMes === "todos" ? pagosNomina : pagosNomina.filter((p) => (p.fecha || "").slice(0, 7) === filtroMes);
-  const sum = (campo) => pagosFiltrados.reduce((s, p) => s + (Number(p[campo]) || 0), 0);
-  const totBruto = pagosFiltrados.reduce((s, p) => s + (Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0), 0);
-  const totLey = sum("afp") + sum("sfs") + sum("isr");
-  const totNeto = sum("neto");
+  const ingresoDe = (p) => Number(p.totalGanado) || ((Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0));
+  const leyDe = (p) => (Number(p.afp) || 0) + (Number(p.sfs) || 0) + (Number(p.isr) || 0);
+  const totBruto = pagosFiltrados.reduce((s, p) => s + ingresoDe(p), 0);
+  const totLey = pagosFiltrados.reduce((s, p) => s + leyDe(p), 0);
+  const totNeto = pagosFiltrados.reduce((s, p) => s + (Number(p.neto) || 0), 0);
   // Regalía pascual: 1/12 del salario ordinario devengado en el año
   const regalias = activos.map((e) => {
     const devengado = pagosNomina
       .filter((p) => p.empleadoId === e.id && (p.fecha || "").slice(0, 4) === anioRegalia && !String(p.periodo || "").startsWith("Regalía"))
-      .reduce((s, p) => s + (Number(p.sueldoBase) || 0), 0);
+      .reduce((s, p) => s + (Number(p.salarioOrdinario) || Number(p.sueldoBase) || 0), 0);
     const yaPagada = pagosNomina.some((p) => p.empleadoId === e.id && p.periodo === `Regalía pascual ${anioRegalia}`);
     return { e, devengado, regalia: r2(devengado / 12), yaPagada };
   });
+  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 };
+  const grid3 = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 };
 
   return (
     <div>
@@ -4941,6 +5219,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button className={"hw-btn small " + (vista === "pagos" ? "" : "ghost")} onClick={() => setVista("pagos")}>Pagos</button>
+        <button className={"hw-btn small " + (vista === "horas" ? "" : "ghost")} onClick={() => setVista("horas")}>Horas</button>
         <button className={"hw-btn small " + (vista === "empleados" ? "" : "ghost")} onClick={() => setVista("empleados")}>Empleados</button>
         <button className={"hw-btn small " + (vista === "regalia" ? "" : "ghost")} onClick={() => setVista("regalia")}>Regalía pascual</button>
       </div>
@@ -4954,22 +5233,23 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
               {meses.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <span style={{ fontSize: 13, marginLeft: "auto" }}>
-              Ingresos: <b>{money(totBruto)}</b> · Desc. de ley: <b>{money(totLey)}</b> · Neto pagado: <b>{money(totNeto)}</b>
+              Total ganado: <b>{money(totBruto)}</b> · Desc. de ley: <b>{money(totLey)}</b> · Neto pagado: <b>{money(totNeto)}</b>
             </span>
           </div>
           <table className="hw-table">
-            <thead><tr><th>Fecha</th><th>Empleado</th><th>Período</th><th>Ingresos</th><th>Desc. ley</th><th>Otros desc.</th><th>Neto pagado</th><th>Método</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Empleado</th><th>Período</th><th>Total ganado</th><th>Desc. ley</th><th>Otros desc.</th><th>Neto ganado</th><th>Método</th><th></th></tr></thead>
             <tbody>
               {[...pagosFiltrados].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((p) => {
-                const ley = (Number(p.afp) || 0) + (Number(p.sfs) || 0) + (Number(p.isr) || 0);
+                const ley = leyDe(p);
+                const otros = (Number(p.descuentos) || 0) - ley;
                 return (
                   <tr key={p.id}>
                     <td>{p.fecha}</td>
                     <td>{p.empleadoNombre}</td>
                     <td>{p.periodo}</td>
-                    <td>{money((Number(p.sueldoBase) || 0) + (Number(p.adicionales) || 0))}</td>
+                    <td>{money(ingresoDe(p))}</td>
                     <td>{ley ? money(ley) : "—"}</td>
-                    <td>{(Number(p.descuentos) || 0) - ley > 0.004 ? money((Number(p.descuentos) || 0) - ley) : "—"}</td>
+                    <td>{otros > 0.004 ? money(otros) : "—"}</td>
                     <td><b>{money(p.neto)}</b>{p.metodo === "Transferencia" && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Auto</span>}</td>
                     <td>{p.metodo}</td>
                     <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -4986,19 +5266,109 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
         </div>
       )}
 
+      {vista === "horas" && (
+        <div>
+          <div className="hw-panel" style={{ padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>{editHoraId ? "Editar horas" : "Registrar entrada y salida"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, alignItems: "end" }}>
+              <FieldRow label="Empleado *">
+                <select className="hw-input" value={rEmpleadoId} onChange={(e) => setREmpleadoId(e.target.value)}>
+                  <option value="">Seleccionar...</option>
+                  {empleados.filter((e) => e.activo !== false || e.id === rEmpleadoId).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </FieldRow>
+              <FieldRow label="Fecha"><input className="hw-input" type="date" value={rFecha} onChange={(e) => setRFecha(e.target.value)} /></FieldRow>
+              <FieldRow label="Hora de entrada"><input className="hw-input" type="time" value={rEntrada} onChange={(e) => setREntrada(e.target.value)} /></FieldRow>
+              <FieldRow label="Hora de salida"><input className="hw-input" type="time" value={rSalida} onChange={(e) => setRSalida(e.target.value)} /></FieldRow>
+              <FieldRow label="Descanso (min)"><input className="hw-input" type="number" value={rDescanso} onChange={(e) => setRDescanso(e.target.value)} /></FieldRow>
+              <FieldRow label="Nota"><input className="hw-input" value={rNota} onChange={(e) => setRNota(e.target.value)} placeholder="Opcional" /></FieldRow>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+              <span style={{ fontSize: 14 }}>Horas trabajadas: <b>{horasRegistro}</b> · cuenta como <b>{diasDeHoras(horasRegistro)}</b> día</span>
+              <button className="hw-btn" onClick={guardarHora}>{editHoraId ? "Actualizar" : "Agregar"}</button>
+              {editHoraId && <button className="hw-btn ghost" onClick={limpiarFormHora}>Cancelar</button>}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Un día cuenta completo si se trabajan 6 horas o más; si son menos, cuenta medio día. Al pagar puede corregir los días a mano.</div>
+          </div>
+
+          <div className="hw-panel" style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px" }}>
+              <span style={{ fontSize: 13, color: "var(--muted)" }}>Desde:</span>
+              <input className="hw-input" type="date" style={{ width: "auto" }} value={hDesde} onChange={(e) => setHDesde(e.target.value)} />
+              <span style={{ fontSize: 13, color: "var(--muted)" }}>Hasta:</span>
+              <input className="hw-input" type="date" style={{ width: "auto" }} value={hHasta} onChange={(e) => setHHasta(e.target.value)} />
+              <button className="hw-btn ghost small" onClick={() => { setHDesde(lunesActual); setHHasta(sumarDias(lunesActual, 6)); }}>Esta semana</button>
+              <button className="hw-btn ghost small" onClick={() => { const l = sumarDias(lunesActual, -7); setHDesde(l); setHHasta(sumarDias(l, 6)); }}>Semana pasada</button>
+              <select className="hw-input" style={{ width: "auto", marginLeft: "auto" }} value={hFiltroEmp} onChange={(e) => setHFiltroEmp(e.target.value)}>
+                <option value="todos">Todos los empleados</option>
+                {empleados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </div>
+            <table className="hw-table">
+              <thead><tr><th>Fecha</th><th>Empleado</th><th>Entrada</th><th>Salida</th><th>Descanso</th><th>Horas</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                {registrosRango.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.fecha}</td>
+                    <td>{r.empleadoNombre}</td>
+                    <td>{r.entrada}</td>
+                    <td>{r.salida}</td>
+                    <td>{n(r.descansoMin) ? r.descansoMin + " min" : "—"}</td>
+                    <td><b>{r.horas}</b></td>
+                    <td>{r.pagoId ? <span className="hw-badge green">Pagado</span> : <span className="hw-badge">Pendiente</span>}</td>
+                    <td style={{ display: "flex", gap: 6 }}>
+                      <button className="hw-btn ghost small" onClick={() => abrirEditarHora(r)}><Edit2 size={13} /></button>
+                      <button className="hw-btn ghost small" onClick={() => eliminarHora(r)}><X size={13} /></button>
+                    </td>
+                  </tr>
+                ))}
+                {registrosRango.length === 0 && <tr><td colSpan={8} className="hw-empty">No hay horas registradas en estas fechas</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="hw-panel">
+            <div style={{ padding: "10px 14px", fontWeight: 700 }}>Lo que hay que pagar del {hDesde} al {hHasta}</div>
+            <table className="hw-table">
+              <thead><tr><th>Empleado</th><th>Modalidad</th><th>Horas</th><th>Días</th><th>Tarifa</th><th>A pagar (bruto)</th><th></th></tr></thead>
+              <tbody>
+                {resumenPorEmpleado.map(({ e, horas, dias, modalidad, monto }) => {
+                  const tarifaDia = n(e.pagoDia) > 0 ? n(e.pagoDia) : tarifaDiaDe(e.cargo);
+                  const tarifaHora = n(e.salarioHora) > 0 ? n(e.salarioHora) : tarifaDia / 8;
+                  return (
+                    <tr key={e.id}>
+                      <td>{e.nombre}{e.cargo ? <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.cargo}</div> : null}</td>
+                      <td>{modalidad}</td>
+                      <td>{horas}</td>
+                      <td>{dias}</td>
+                      <td>{modalidad === "Por día" ? money(tarifaDia) + " / día" : modalidad === "Por hora" ? money(tarifaHora) + " / hora" : "—"}</td>
+                      <td><b>{modalidad === "Por día" || modalidad === "Por hora" ? money(monto) : "—"}</b></td>
+                      <td><button className="hw-btn small" disabled={horas <= 0} onClick={() => abrirNuevoPago(e, { desde: hDesde, hasta: hHasta })}>Pagar</button></td>
+                    </tr>
+                  );
+                })}
+                {resumenPorEmpleado.length === 0 && <tr><td colSpan={7} className="hw-empty">Aún no hay empleados pagados por hora o por día</td></tr>}
+              </tbody>
+            </table>
+            {resumenPorEmpleado.length > 0 && <div style={{ padding: "10px 14px", fontSize: 13.5 }}>Total pendiente de pagar (antes de descuentos): <b>{money(totalPendientePagar)}</b></div>}
+          </div>
+        </div>
+      )}
+
       {vista === "empleados" && (
         <div className="hw-panel">
           <table className="hw-table">
-            <thead><tr><th>Nombre</th><th>Cargo</th><th>Cédula</th><th>Sueldo</th><th>Pago</th><th>Desc. ley</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Cód.</th><th>Nombre</th><th>Depto.</th><th>Cédula</th><th>Salario</th><th>Modalidad</th><th>Préstamo pendiente</th><th>Estado</th><th></th></tr></thead>
             <tbody>
-              {[...empleados].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")).map((e) => (
+              {[...empleados].sort((a, b) => (a.codigo || "").localeCompare(b.codigo || "")).map((e) => (
                 <tr key={e.id} style={e.activo === false ? { opacity: 0.55 } : undefined}>
-                  <td>{e.nombre}</td>
-                  <td>{e.cargo || "—"}</td>
+                  <td>{e.codigo || "—"}</td>
+                  <td>{e.nombre}{e.cargo ? <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.cargo}</div> : null}</td>
+                  <td>{e.departamento || "—"}</td>
                   <td>{e.cedula || "—"}</td>
-                  <td>{money(e.sueldo)}</td>
-                  <td>{e.periodicidad}</td>
-                  <td>{e.aplicaLey === false ? "No" : "Sí"}</td>
+                  <td>{(e.modalidad === "Por día") ? money(e.pagoDia) + " / día" : (e.modalidad === "Por hora") ? money(e.salarioHora) + " / hora" : money(e.salarioMensual != null ? e.salarioMensual : (Number(e.sueldo) || 0) * (PERIODOS_POR_ANIO[e.periodicidad] || 12) / 12) + " / mes"}</td>
+                  <td>{e.modalidad || e.periodicidad}</td>
+                  <td>{Number(e.prestamoSaldo) > 0 ? <b>{money(e.prestamoSaldo)}</b> : "—"}</td>
                   <td>{e.activo === false ? "Inactivo" : "Activo"}</td>
                   <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {e.activo !== false && <button className="hw-btn small" onClick={() => abrirNuevoPago(e)}>Pagar</button>}
@@ -5008,7 +5378,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
                   </td>
                 </tr>
               ))}
-              {empleados.length === 0 && <tr><td colSpan={8} className="hw-empty">Aún no has registrado ningún empleado</td></tr>}
+              {empleados.length === 0 && <tr><td colSpan={9} className="hw-empty">Aún no has registrado ningún empleado</td></tr>}
             </tbody>
           </table>
           {activos.length > 0 && <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>Si se pagara a todos los activos en un período: {money(nominaPorPeriodo)} (antes de descuentos)</div>}
@@ -5020,10 +5390,10 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px" }}>
             <span style={{ fontSize: 13, color: "var(--muted)" }}>Año:</span>
             <input className="hw-input" type="number" style={{ width: 100 }} value={anioRegalia} onChange={(e) => setAnioRegalia(e.target.value)} />
-            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Estimado: 1/12 del sueldo ordinario pagado en el año según los pagos registrados aquí. Se paga a más tardar el 20 de diciembre.</span>
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Estimado: 1/12 del salario ordinario pagado en el año según los pagos registrados aquí. Se paga a más tardar el 20 de diciembre.</span>
           </div>
           <table className="hw-table">
-            <thead><tr><th>Empleado</th><th>Sueldo pagado en el año</th><th>Regalía pascual</th><th></th></tr></thead>
+            <thead><tr><th>Empleado</th><th>Salario ordinario pagado en el año</th><th>Regalía pascual</th><th></th></tr></thead>
             <tbody>
               {regalias.map(({ e, devengado, regalia, yaPagada }) => (
                 <tr key={e.id}>
@@ -5039,67 +5409,212 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
         </div>
       )}
 
+      {/* ===== Formulario de empleado ===== */}
       {openEmp && (
         <div className="hw-modal-overlay" onClick={() => setOpenEmp(false)}>
-          <div className="hw-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+          <div className="hw-modal" style={{ maxWidth: 640, maxHeight: "94vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div className="hw-modal-head"><div className="hw-modal-title">{editEmpId ? "Editar empleado" : "Nuevo empleado"}</div><button className="hw-close" onClick={() => setOpenEmp(false)}><X size={18} /></button></div>
-            <FieldRow label="Nombre completo *"><input className="hw-input" value={eNombre} onChange={(e) => setENombre(e.target.value)} /></FieldRow>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <FieldRow label="Cédula"><input className="hw-input" value={eCedula} onChange={(e) => setECedula(e.target.value)} /></FieldRow>
-              <FieldRow label="Teléfono"><input className="hw-input" value={eTelefono} onChange={(e) => setETelefono(e.target.value)} /></FieldRow>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <FieldRow label="Cargo"><input className="hw-input" value={eCargo} onChange={(e) => setECargo(e.target.value)} placeholder="Ej: Técnico instalador" /></FieldRow>
-              <FieldRow label="Fecha de ingreso"><input className="hw-input" type="date" value={eIngreso} onChange={(e) => setEIngreso(e.target.value)} /></FieldRow>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <FieldRow label="Se le paga"><select className="hw-input" value={ePeriodicidad} onChange={(e) => setEPeriodicidad(e.target.value)}>{PERIODICIDADES.map((x) => <option key={x}>{x}</option>)}</select></FieldRow>
-              <FieldRow label="Sueldo por período (RD$) *"><input className="hw-input" type="number" value={eSueldo} onChange={(e) => setESueldo(e.target.value)} placeholder="0.00" /></FieldRow>
-            </div>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, margin: "6px 0" }}>
-              <input type="checkbox" checked={eLey} onChange={(e) => setELey(e.target.checked)} />
-              Aplicar descuentos de ley (AFP, SFS e ISR)
-            </label>
-            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 10 }} onClick={guardarEmpleado}>Guardar empleado</button>
+
+            <SeccionNomina titulo="Datos del empleado">
+              <div style={grid2}>
+                <FieldRow label="Cód. Emp."><input className="hw-input" value={eCodigo} onChange={(e) => setECodigo(e.target.value)} /></FieldRow>
+                <FieldRow label="Cédula"><input className="hw-input" value={eCedula} onChange={(e) => setECedula(e.target.value)} /></FieldRow>
+              </div>
+              <FieldRow label="Nombre completo del empleado *"><input className="hw-input" value={eNombre} onChange={(e) => setENombre(e.target.value)} /></FieldRow>
+              <div style={grid2}>
+                <FieldRow label="Departamento"><input className="hw-input" value={eDepto} onChange={(e) => setEDepto(e.target.value)} placeholder="Ej: Instalaciones" /></FieldRow>
+                <FieldRow label="Cargo">
+                  <input className="hw-input" list="cargos-nomina" value={eCargo} onChange={(e) => { const v = e.target.value; setECargo(v); const t = tarifaDiaDe(v); if (t > 0 && (!editEmpId || n(ePagoDia) === 0 || tarifaDiaDe(eCargo) === n(ePagoDia))) setEPagoDia(String(t)); }} placeholder="Técnico, Ayudante de técnico, Colaborador..." />
+                  <datalist id="cargos-nomina">{CARGOS_SUGERIDOS.map((c) => <option key={c} value={c} />)}</datalist>
+                </FieldRow>
+              </div>
+              <div style={grid2}>
+                <FieldRow label="Teléfono"><input className="hw-input" value={eTelefono} onChange={(e) => setETelefono(e.target.value)} /></FieldRow>
+                <FieldRow label="Fecha de ingreso"><input className="hw-input" type="date" value={eIngreso} onChange={(e) => setEIngreso(e.target.value)} /></FieldRow>
+              </div>
+            </SeccionNomina>
+
+            <SeccionNomina titulo="Modalidad de pago y salario">
+              <FieldRow label="¿Cómo se le paga? *">
+                <select className="hw-input" value={eModalidad} onChange={(e) => { const v = e.target.value; setEModalidad(v); if (!editEmpId) setELey(!(v === "Por hora" || v === "Por día")); if ((v === "Por hora" || v === "Por día") && n(ePagoDia) === 0 && tarifaDiaDe(eCargo) > 0) setEPagoDia(String(tarifaDiaDe(eCargo))); }}>
+                  {MODALIDADES.map((x) => <option key={x}>{x}</option>)}
+                </select>
+              </FieldRow>
+              {(eEsHora || eEsDia) ? (
+                <>
+                  <div style={grid2}>
+                    <FieldRow label="Pago por día (RD$) *"><input className="hw-input" type="number" value={ePagoDia} onChange={(e) => setEPagoDia(e.target.value)} placeholder="0.00" /></FieldRow>
+                    {eEsHora && <FieldRow label="Pago por hora (RD$)"><input className="hw-input" type="number" value={eHora} onChange={(e) => setEHora(e.target.value)} placeholder={horaAutoE ? r2(horaAutoE).toFixed(2) + " (día ÷ 8)" : "auto"} /></FieldRow>}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                    Por defecto: Técnico RD$ 1,500 · Ayudante de técnico RD$ 1,000 · Colaborador RD$ 1,200 por día (sale solo al escribir el cargo). Puede cambiarlo a mano. {eEsHora ? "Si deja el pago por hora vacío, se calcula como el pago por día ÷ 8." : ""} Las horas se registran en la pestaña <b>Horas</b> (entrada y salida) y se pagan por semana.
+                  </div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>{eEsDia ? "Ejemplo: una semana de 6 días" : "Ejemplo: una semana de 44 horas"}</div>
+                    <FilaResumen etiqueta="Salario ordinario" valor={calcE.ordinario} />
+                    <FilaResumen etiqueta="Sueldo bruto" valor={calcE.bruto} fuerte />
+                    <FilaResumen etiqueta="Total ganado" valor={calcE.totalGanado} fuerte />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={grid2}>
+                    <FieldRow label="Salario mensual (RD$) *"><input className="hw-input" type="number" value={eMensual} onChange={(e) => setEMensual(e.target.value)} placeholder="0.00" /></FieldRow>
+                    <FieldRow label="Salario por hora"><input className="hw-input" type="number" value={eHora} onChange={(e) => setEHora(e.target.value)} placeholder={horaAutoE ? r2(horaAutoE).toFixed(2) : "auto"} /></FieldRow>
+                  </div>
+                  <div style={grid3}>
+                    <FieldRow label="Horas ordinarias"><input className="hw-input" type="number" value={eHOrd} onChange={(e) => setEHOrd(e.target.value)} placeholder={String(hOrdAutoE)} /></FieldRow>
+                    <FieldRow label="Horas extras (135 %)"><input className="hw-input" type="number" value={eHExt} onChange={(e) => setEHExt(e.target.value)} placeholder="0" /></FieldRow>
+                    <FieldRow label="Horas dobles (200 %)"><input className="hw-input" type="number" value={eHDob} onChange={(e) => setEHDob(e.target.value)} placeholder="0" /></FieldRow>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>El salario por hora se calcula solo (salario mensual ÷ 190.64 horas). Las horas son las de un período normal; al registrar cada pago se pueden cambiar.</div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                    <FilaResumen etiqueta="Salario ordinario" valor={calcE.ordinario} />
+                    {calcE.pagoExtras > 0 && <FilaResumen etiqueta="Pago de horas extras" valor={calcE.pagoExtras} />}
+                    {calcE.pagoDobles > 0 && <FilaResumen etiqueta="Pago de horas dobles" valor={calcE.pagoDobles} />}
+                    <FilaResumen etiqueta="Sueldo bruto" valor={calcE.bruto} fuerte />
+                    <FilaResumen etiqueta="Total ganado" valor={calcE.totalGanado} fuerte />
+                  </div>
+                </>
+              )}
+            </SeccionNomina>
+
+            <SeccionNomina titulo="Deducciones">
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, marginBottom: 8 }}>
+                <input type="checkbox" checked={eLey} onChange={(e) => setELey(e.target.checked)} />
+                Aplicar descuentos de ley (ARS, AFP e ISR)
+              </label>
+              <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}>Seguros</div>
+                <FilaResumen sangria etiqueta="Seguro de salud ARS / SFS (3.04 %)" valor={calcE.ley.sfs} negativo />
+                <FilaResumen sangria etiqueta="Seguro de pensión AFP (2.87 %)" valor={calcE.ley.afp} negativo />
+                <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>Impuestos</div>
+                <FilaResumen sangria etiqueta="ISR (impuesto sobre la renta)" valor={calcE.ley.isr} negativo />
+                {cuotaE > 0 && (<><div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>Otros descuentos</div><FilaResumen sangria etiqueta="Cuota del préstamo" valor={cuotaE} negativo /></>)}
+                <FilaResumen etiqueta="Total deducciones" valor={calcE.totalDesc} negativo fuerte />
+              </div>
+              <FieldRow label="Otros impuestos fijos por período (opcional)"><input className="hw-input" type="number" value={eOtrosImp} onChange={(e) => setEOtrosImp(e.target.value)} placeholder="0.00" /></FieldRow>
+              <div style={{ marginTop: 6, padding: "10px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 15 }}>
+                <FilaResumen etiqueta="Neto ganado" valor={calcE.neto} fuerte />
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Estimado para un período normal. Los montos reales se calculan en cada pago.</div>
+            </SeccionNomina>
+
+            <SeccionNomina titulo="Préstamo al empleado">
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, marginBottom: 8 }}>
+                <input type="checkbox" checked={ePrestamo} onChange={(e) => setEPrestamo(e.target.checked)} />
+                Este empleado tiene un préstamo (se le descuenta en cada pago)
+              </label>
+              {ePrestamo && (
+                <>
+                  <div style={grid3}>
+                    <FieldRow label="Monto prestado (RD$)"><input className="hw-input" type="number" value={ePrestMonto} onChange={(e) => setEPrestMonto(e.target.value)} placeholder="0.00" /></FieldRow>
+                    <FieldRow label="Cuota por pago (RD$)"><input className="hw-input" type="number" value={ePrestCuota} onChange={(e) => setEPrestCuota(e.target.value)} placeholder="0.00" /></FieldRow>
+                    <FieldRow label="Saldo pendiente"><input className="hw-input" type="number" value={ePrestSaldo} onChange={(e) => setEPrestSaldo(e.target.value)} placeholder={ePrestMonto || "0.00"} /></FieldRow>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>Si deja el saldo vacío, empieza igual al monto prestado. En cada pago se descuenta la cuota y el saldo baja solo, hasta llegar a cero.</div>
+                </>
+              )}
+            </SeccionNomina>
+
+            <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 6 }} onClick={guardarEmpleado}>Guardar empleado</button>
           </div>
         </div>
       )}
 
+      {/* ===== Formulario de pago ===== */}
       {openPago && (
         <div className="hw-modal-overlay" onClick={() => setOpenPago(false)}>
-          <div className="hw-modal" style={{ maxWidth: 520, maxHeight: "92vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+          <div className="hw-modal" style={{ maxWidth: 640, maxHeight: "94vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div className="hw-modal-head"><div className="hw-modal-title">{editPagoId ? "Editar pago" : "Registrar pago de nómina"}</div><button className="hw-close" onClick={() => setOpenPago(false)}><X size={18} /></button></div>
             <FieldRow label="Empleado *">
               <select className="hw-input" value={pEmpleadoId} onChange={(e) => elegirEmpleadoPago(e.target.value)}>
                 <option value="">Seleccionar...</option>
-                {empleados.filter((e) => e.activo !== false || e.id === pEmpleadoId).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                {empleados.filter((e) => e.activo !== false || e.id === pEmpleadoId).map((e) => <option key={e.id} value={e.id}>{(e.codigo ? e.codigo + " · " : "") + e.nombre}</option>)}
               </select>
             </FieldRow>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={grid2}>
               <FieldRow label="Período que se paga *"><input className="hw-input" value={pPeriodo} onChange={(e) => setPPeriodo(e.target.value)} placeholder="Ej: 1 al 15 de noviembre" /></FieldRow>
               <FieldRow label="Fecha de pago"><input className="hw-input" type="date" value={pFecha} onChange={(e) => setPFecha(e.target.value)} /></FieldRow>
             </div>
-            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Ingresos</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <FieldRow label="Sueldo del período *"><input className="hw-input" type="number" value={pSueldo} onChange={(e) => setPSueldo(e.target.value)} /></FieldRow>
-              <FieldRow label="Horas extras"><input className="hw-input" type="number" value={pHoras} onChange={(e) => setPHoras(e.target.value)} placeholder="0.00" /></FieldRow>
-              <FieldRow label="Bonos / comisión"><input className="hw-input" type="number" value={pBonos} onChange={(e) => setPBonos(e.target.value)} placeholder="0.00" /></FieldRow>
-            </div>
-            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Descuentos de ley</div>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, margin: "2px 0 8px" }}>
-              <input type="checkbox" checked={pAuto} onChange={(e) => setPAuto(e.target.checked)} />
-              Calcular automáticamente (AFP 2.87 %, SFS 3.04 %, ISR según escala). Puede corregir los montos a mano.
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <FieldRow label="AFP"><input className="hw-input" type="number" value={pAfp} onChange={(e) => { setPAuto(false); setPAfp(e.target.value); }} placeholder="0.00" /></FieldRow>
-              <FieldRow label="SFS"><input className="hw-input" type="number" value={pSfs} onChange={(e) => { setPAuto(false); setPSfs(e.target.value); }} placeholder="0.00" /></FieldRow>
-              <FieldRow label="ISR"><input className="hw-input" type="number" value={pIsr} onChange={(e) => { setPAuto(false); setPIsr(e.target.value); }} placeholder="0.00" /></FieldRow>
-            </div>
-            <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0 4px" }}>Otros descuentos</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <FieldRow label="Adelantos / préstamos"><input className="hw-input" type="number" value={pAdelantos} onChange={(e) => setPAdelantos(e.target.value)} placeholder="0.00" /></FieldRow>
-              <FieldRow label="Otros descuentos"><input className="hw-input" type="number" value={pOtros} onChange={(e) => setPOtros(e.target.value)} placeholder="0.00" /></FieldRow>
-            </div>
+
+            <SeccionNomina titulo="Ingresos">
+              {pEsMonto ? (
+                <FieldRow label="Monto a pagar (RD$) *"><input className="hw-input" type="number" value={pManual} onChange={(e) => setPManual(e.target.value)} /></FieldRow>
+              ) : (
+                <>
+                  <FieldRow label="Modalidad">
+                    <select className="hw-input" value={pModalidad} onChange={(e) => setPModalidad(e.target.value)}>{MODALIDADES.map((x) => <option key={x}>{x}</option>)}</select>
+                  </FieldRow>
+                  {(pEsHora || pEsDia) && (
+                    <div style={{ background: "var(--accent-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13 }}>Del</span>
+                        <input className="hw-input" type="date" style={{ width: "auto" }} value={pDesde} onChange={(e) => setPDesde(e.target.value)} />
+                        <span style={{ fontSize: 13 }}>al</span>
+                        <input className="hw-input" type="date" style={{ width: "auto" }} value={pHasta} onChange={(e) => setPHasta(e.target.value)} />
+                        <button className="hw-btn small" onClick={recargarDelRegistro}>Cargar del registro de horas</button>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Toma las horas y los días registrados (sin pagar) en esas fechas. Puede corregir los números a mano.</div>
+                    </div>
+                  )}
+                  {pEsDia ? (
+                    <div style={grid2}>
+                      <FieldRow label="Días trabajados"><input className="hw-input" type="number" step="0.5" value={pDias} onChange={(e) => setPDias(e.target.value)} /></FieldRow>
+                      <FieldRow label="Pago por día (RD$)"><input className="hw-input" type="number" value={pTarifaDia} onChange={(e) => setPTarifaDia(e.target.value)} /></FieldRow>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={grid2}>
+                        <FieldRow label="Salario por hora (RD$)"><input className="hw-input" type="number" value={pHora} onChange={(e) => setPHora(e.target.value)} /></FieldRow>
+                        <FieldRow label="Horas ordinarias"><input className="hw-input" type="number" value={pHOrd} onChange={(e) => setPHOrd(e.target.value)} /></FieldRow>
+                      </div>
+                      <div style={grid2}>
+                        <FieldRow label="Horas extras (135 %)"><input className="hw-input" type="number" value={pHExt} onChange={(e) => setPHExt(e.target.value)} placeholder="0" /></FieldRow>
+                        <FieldRow label="Horas dobles (200 %)"><input className="hw-input" type="number" value={pHDob} onChange={(e) => setPHDob(e.target.value)} placeholder="0" /></FieldRow>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+              <FieldRow label="Bonos / comisión (RD$)"><input className="hw-input" type="number" value={pBonos} onChange={(e) => setPBonos(e.target.value)} placeholder="0.00" /></FieldRow>
+              <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                <FilaResumen etiqueta="Salario ordinario" valor={calcP.ordinario} />
+                {calcP.pagoExtras > 0 && <FilaResumen etiqueta="Pago de horas extras" valor={calcP.pagoExtras} />}
+                {calcP.pagoDobles > 0 && <FilaResumen etiqueta="Pago de horas dobles" valor={calcP.pagoDobles} />}
+                <FilaResumen etiqueta="Sueldo bruto" valor={calcP.bruto} fuerte />
+                {n(pBonos) > 0 && <FilaResumen etiqueta="Bonos / comisión" valor={n(pBonos)} />}
+                <FilaResumen etiqueta="Total ganado" valor={calcP.totalGanado} fuerte />
+              </div>
+            </SeccionNomina>
+
+            <SeccionNomina titulo="Deducciones">
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 8 }}>
+                <input type="checkbox" checked={pAuto} onChange={(e) => setPAuto(e.target.checked)} />
+                Calcular seguros e ISR automáticamente. Puede corregir los montos a mano.
+              </label>
+              <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}>Seguros</div>
+              <div style={grid2}>
+                <FieldRow label="Seguro de salud ARS / SFS (3.04 %)"><input className="hw-input" type="number" value={pSfs} onChange={(e) => { setPAuto(false); setPSfs(e.target.value); }} placeholder="0.00" /></FieldRow>
+                <FieldRow label="Seguro de pensión AFP (2.87 %)"><input className="hw-input" type="number" value={pAfp} onChange={(e) => { setPAuto(false); setPAfp(e.target.value); }} placeholder="0.00" /></FieldRow>
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}>Impuestos</div>
+              <div style={grid2}>
+                <FieldRow label="ISR"><input className="hw-input" type="number" value={pIsr} onChange={(e) => { setPAuto(false); setPIsr(e.target.value); }} placeholder="0.00" /></FieldRow>
+                <FieldRow label="Otros impuestos"><input className="hw-input" type="number" value={pOtrosImp} onChange={(e) => setPOtrosImp(e.target.value)} placeholder="0.00" /></FieldRow>
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}>Otros descuentos</div>
+              <div style={grid3}>
+                <FieldRow label="Préstamo (cuota)"><input className="hw-input" type="number" value={pPrestamo} onChange={(e) => setPPrestamo(e.target.value)} placeholder="0.00" /></FieldRow>
+                <FieldRow label="Adelantos"><input className="hw-input" type="number" value={pAdelantos} onChange={(e) => setPAdelantos(e.target.value)} placeholder="0.00" /></FieldRow>
+                <FieldRow label="Otros"><input className="hw-input" type="number" value={pOtros} onChange={(e) => setPOtros(e.target.value)} placeholder="0.00" /></FieldRow>
+              </div>
+              {empPago && n(empPago.prestamoSaldo) > 0 && (
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 6 }}>Saldo pendiente del préstamo: <b>{money(empPago.prestamoSaldo)}</b>. Al guardar, la cuota se descuenta del saldo.</div>
+              )}
+              <FilaResumen etiqueta="Total deducciones" valor={calcP.totalDesc} negativo fuerte />
+            </SeccionNomina>
+
             <FieldRow label="Método de pago">
               <select className="hw-input" value={pMetodo} onChange={(e) => setPMetodo(e.target.value)}><option>Efectivo</option><option>Transferencia</option></select>
             </FieldRow>
@@ -5107,9 +5622,8 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
               <div style={{ fontSize: 12.5, color: "var(--muted)", margin: "2px 0 8px" }}>El neto se debitará automáticamente de tu cuenta bancaria predeterminada al guardar.</div>
             )}
             <FieldRow label="Nota (opcional)"><input className="hw-input" value={pNota} onChange={(e) => setPNota(e.target.value)} /></FieldRow>
-            <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6 }}>
-              <div>Ingresos: {money(ingresosForm)} · Descuentos: {money(descuentosForm)}</div>
-              <div style={{ fontSize: 15 }}><b>Neto a pagar:</b> {money(Math.max(netoForm, 0))}</div>
+            <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 15 }}>
+              <FilaResumen etiqueta="Neto ganado (a pagar)" valor={Math.max(calcP.neto, 0)} fuerte />
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardarPago}>Guardar pago</button>
           </div>
@@ -5123,7 +5637,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, negocio,
             <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 12 }}>
               <div><b>{recibo.empleadoNombre}</b></div>
               <div>Período: {recibo.periodo}</div>
-              <div>Neto pagado: <b>{money(recibo.neto)}</b></div>
+              <div>Neto ganado: <b>{money(recibo.neto)}</b></div>
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => compartirRecibo(recibo)}><Share2 size={15} /> Compartir PDF</button>
             <button className="hw-btn ghost" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => descargarRecibo(recibo)}><Download size={15} /> Guardar PDF</button>
