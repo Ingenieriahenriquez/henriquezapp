@@ -4806,6 +4806,29 @@ function generarReciboNominaPDF(p, emp, negocio) {
   return pdf;
 }
 
+// Reduce una foto (de la cámara o de la galería) para guardarla liviana en la base de datos
+function comprimirImagen(archivo, maxLado = 1400, calidad = 0.72) {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onerror = () => reject(new Error("No se pudo leer la foto."));
+    lector.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("No se pudo abrir la foto. Pruebe con una foto en formato JPG o PNG."));
+      img.onload = () => {
+        const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", calidad));
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  });
+}
+
 // Pequeño bloque de resumen con etiqueta/valor para los formularios
 function FilaResumen({ etiqueta, valor, negativo, fuerte, sangria }) {
   return (
@@ -4849,6 +4872,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const [eHDob, setEHDob] = useState("");
   const [eLey, setELey] = useState(true);
   const [eOtrosImp, setEOtrosImp] = useState("");
+  const [eFotoFrente, setEFotoFrente] = useState("");
+  const [eFotoReverso, setEFotoReverso] = useState("");
+  const [verCedula, setVerCedula] = useState(null);
   const [ePrestamo, setEPrestamo] = useState(false);
   const [ePrestMonto, setEPrestMonto] = useState("");
   const [ePrestCuota, setEPrestCuota] = useState("");
@@ -4928,13 +4954,24 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     const nums = empleados.map((e) => parseInt(String(e.codigo || "").replace(/\D/g, ""), 10)).filter((x) => !isNaN(x));
     return "EMP-" + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
   }
+  async function subirFotoCedula(evento, lado) {
+    const archivo = evento.target.files && evento.target.files[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    try {
+      const data = await comprimirImagen(archivo);
+      if (lado === "frente") setEFotoFrente(data); else setEFotoReverso(data);
+    } catch (err) { alert(err.message || "No se pudo cargar la foto."); }
+  }
   function abrirNuevoEmpleado() {
+    setEFotoFrente(""); setEFotoReverso("");
     setEditEmpId(null); setECodigo(siguienteCodigo()); setENombre(""); setECedula(""); setEDepto(""); setECargo(""); setETelefono("");
     setEIngreso(hoy); setEModalidad("Quincenal"); setEPagoDia(""); setEMensual(""); setEHora(""); setEHOrd(""); setEHExt(""); setEHDob("");
     setELey(true); setEOtrosImp(""); setEPrestamo(false); setEPrestMonto(""); setEPrestCuota(""); setEPrestSaldo("");
     setOpenEmp(true);
   }
   function abrirEditarEmpleado(e) {
+    setEFotoFrente(e.fotoCedula || ""); setEFotoReverso(e.fotoCedulaReverso || "");
     setEditEmpId(e.id); setECodigo(e.codigo || ""); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setEDepto(e.departamento || "");
     setECargo(e.cargo || ""); setETelefono(e.telefono || ""); setEIngreso(e.fechaIngreso || hoy); setEModalidad(e.modalidad || e.periodicidad || "Quincenal"); setEPagoDia(e.pagoDia ? String(e.pagoDia) : "");
     const ppyEd = PERIODOS_POR_ANIO[periodicidadDe(e.modalidad || e.periodicidad)] || 12;
@@ -4960,6 +4997,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       salarioMensual: eEsHora || eEsDia ? 0 : r2(mensualE), salarioHora: eEsHora ? r2(horaE * 100) / 100 : (eHora !== "" ? n(eHora) : 0),
       horasOrdinarias: eEsHora || eEsDia ? 0 : (eHOrd !== "" ? n(eHOrd) : 0), horasExtras: eEsHora || eEsDia ? 0 : n(eHExt), horasDobles: eEsHora || eEsDia ? 0 : n(eHDob),
       sueldo: eEsHora || eEsDia ? 0 : n(eMensual), aplicaLey: eLey, otrosImpuestos: n(eOtrosImp),
+      fotoCedula: eFotoFrente, fotoCedulaReverso: eFotoReverso,
       prestamoMonto: ePrestamo ? n(ePrestMonto) : 0, prestamoCuota: ePrestamo ? n(ePrestCuota) : 0, prestamoSaldo: saldo,
     };
     if (editEmpId) {
@@ -5375,6 +5413,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   <td>{e.activo === false ? "Inactivo" : "Activo"}</td>
                   <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {e.activo !== false && <button className="hw-btn small" onClick={() => abrirNuevoPago(e)}>Pagar</button>}
+                    {(e.fotoCedula || e.fotoCedulaReverso) && <button className="hw-btn ghost small" onClick={() => setVerCedula(e)}>Ver cédula</button>}
                     <button className="hw-btn ghost small" onClick={() => abrirEditarEmpleado(e)}><Edit2 size={13} /></button>
                     <button className="hw-btn ghost small" onClick={() => alternarActivo(e)}>{e.activo === false ? "Activar" : "Desactivar"}</button>
                     <button className="hw-btn ghost small" onClick={() => eliminarEmpleado(e)}><X size={13} /></button>
@@ -5435,6 +5474,29 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                 <FieldRow label="Teléfono"><input className="hw-input" value={eTelefono} onChange={(e) => setETelefono(e.target.value)} /></FieldRow>
                 <FieldRow label="Fecha de ingreso"><input className="hw-input" type="date" value={eIngreso} onChange={(e) => setEIngreso(e.target.value)} /></FieldRow>
               </div>
+            </SeccionNomina>
+
+            <SeccionNomina titulo="Foto de la cédula">
+              <div style={grid2}>
+                {[["Frente", eFotoFrente, setEFotoFrente, "frente"], ["Reverso", eFotoReverso, setEFotoReverso, "reverso"]].map(([titulo, foto, setFoto, lado]) => (
+                  <div key={lado} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 6 }}>{titulo}</div>
+                    {foto ? (
+                      <img src={foto} alt={"Cédula " + titulo} style={{ width: "100%", maxHeight: 140, objectFit: "contain", borderRadius: 8, border: "1px solid var(--border, #E4E7EC)", background: "#f8f8f8" }} />
+                    ) : (
+                      <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px dashed #B9BDC7", color: "var(--muted)", fontSize: 12.5 }}>Sin foto</div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 6, flexWrap: "wrap" }}>
+                      <label className="hw-btn ghost small" style={{ cursor: "pointer" }}>
+                        <Camera size={13} /> {foto ? "Cambiar" : "Subir foto"}
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(ev) => subirFotoCedula(ev, lado)} />
+                      </label>
+                      {foto && <button className="hw-btn ghost small" onClick={() => setFoto("")}>Quitar</button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Puede tomar la foto con la cámara o elegirla de la galería. Se reduce de tamaño automáticamente al guardarla.</div>
             </SeccionNomina>
 
             <SeccionNomina titulo="Modalidad de pago y salario">
@@ -5629,6 +5691,21 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <FilaResumen etiqueta="Neto ganado (a pagar)" valor={Math.max(calcP.neto, 0)} fuerte />
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardarPago}>Guardar pago</button>
+          </div>
+        </div>
+      )}
+
+      {verCedula && (
+        <div className="hw-modal-overlay" onClick={() => setVerCedula(null)}>
+          <div className="hw-modal" style={{ maxWidth: 560, maxHeight: "94vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">Cédula de {verCedula.nombre}</div><button className="hw-close" onClick={() => setVerCedula(null)}><X size={18} /></button></div>
+            {[["Frente", verCedula.fotoCedula], ["Reverso", verCedula.fotoCedulaReverso]].map(([titulo, foto]) => foto ? (
+              <div key={titulo} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>{titulo}</div>
+                <img src={foto} alt={"Cédula " + titulo} style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border, #E4E7EC)" }} />
+                <a className="hw-btn ghost small" style={{ marginTop: 6, display: "inline-flex" }} href={foto} download={`Cedula-${titulo}-${(verCedula.nombre || "").replace(/\s+/g, "-")}.jpg`}><Download size={13} /> Descargar</a>
+              </div>
+            ) : null)}
           </div>
         </div>
       )}
