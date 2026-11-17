@@ -4660,6 +4660,12 @@ function horasEntre(entrada, salida, descansoMin) {
 }
 // Un día cuenta completo si se trabajaron 6 horas o más; si fueron menos, cuenta medio día.
 const diasDeHoras = (h) => (h >= 6 ? 1 : h > 0 ? 0.5 : 0);
+const minutosDe = (t) => { const [h, m] = String(t || "").split(":"); return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0); };
+// Minutos de tardanza: cuánto después de la hora acordada llegó el empleado
+const tardanzaMin = (real, acordada) => (real && acordada ? Math.max(0, minutosDe(real) - minutosDe(acordada)) : 0);
+// Días que se pagan por un registro: proporcional al tiempo trabajado (horas ÷ jornada, máximo 1 día) o la regla de 6 horas
+const diasDelRegistro = (horas, emp) => (emp && emp.pagoProporcional !== false ? Math.round(Math.min(1, horas / (Number(emp.jornadaHoras) > 0 ? Number(emp.jornadaHoras) : 8)) * 100) / 100 : diasDeHoras(horas));
+const diasRegistro = (r) => (r.diasPago != null && r.diasPago !== "" ? Number(r.diasPago) : diasDeHoras(Number(r.horas) || 0));
 const lunesDeLaSemana = (fechaISO) => {
   const d = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T12:00:00");
   const dia = d.getDay() === 0 ? 7 : d.getDay();
@@ -4872,6 +4878,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const [eHDob, setEHDob] = useState("");
   const [eLey, setELey] = useState(true);
   const [eOtrosImp, setEOtrosImp] = useState("");
+  const [eHoraAcordada, setEHoraAcordada] = useState("08:30");
+  const [eJornada, setEJornada] = useState("8");
+  const [eProporcional, setEProporcional] = useState(true);
   const [eFotoFrente, setEFotoFrente] = useState("");
   const [eFotoReverso, setEFotoReverso] = useState("");
   const [verCedula, setVerCedula] = useState(null);
@@ -4964,14 +4973,14 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     } catch (err) { alert(err.message || "No se pudo cargar la foto."); }
   }
   function abrirNuevoEmpleado() {
-    setEFotoFrente(""); setEFotoReverso("");
+    setEFotoFrente(""); setEFotoReverso(""); setEHoraAcordada("08:30"); setEJornada("8"); setEProporcional(true);
     setEditEmpId(null); setECodigo(siguienteCodigo()); setENombre(""); setECedula(""); setEDepto(""); setECargo(""); setETelefono("");
     setEIngreso(hoy); setEModalidad("Quincenal"); setEPagoDia(""); setEMensual(""); setEHora(""); setEHOrd(""); setEHExt(""); setEHDob("");
     setELey(true); setEOtrosImp(""); setEPrestamo(false); setEPrestMonto(""); setEPrestCuota(""); setEPrestSaldo("");
     setOpenEmp(true);
   }
   function abrirEditarEmpleado(e) {
-    setEFotoFrente(e.fotoCedula || ""); setEFotoReverso(e.fotoCedulaReverso || "");
+    setEFotoFrente(e.fotoCedula || ""); setEFotoReverso(e.fotoCedulaReverso || ""); setEHoraAcordada(e.horaAcordada || ""); setEJornada(e.jornadaHoras ? String(e.jornadaHoras) : "8"); setEProporcional(e.pagoProporcional !== false);
     setEditEmpId(e.id); setECodigo(e.codigo || ""); setENombre(e.nombre || ""); setECedula(e.cedula || ""); setEDepto(e.departamento || "");
     setECargo(e.cargo || ""); setETelefono(e.telefono || ""); setEIngreso(e.fechaIngreso || hoy); setEModalidad(e.modalidad || e.periodicidad || "Quincenal"); setEPagoDia(e.pagoDia ? String(e.pagoDia) : "");
     const ppyEd = PERIODOS_POR_ANIO[periodicidadDe(e.modalidad || e.periodicidad)] || 12;
@@ -4998,6 +5007,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       horasOrdinarias: eEsHora || eEsDia ? 0 : (eHOrd !== "" ? n(eHOrd) : 0), horasExtras: eEsHora || eEsDia ? 0 : n(eHExt), horasDobles: eEsHora || eEsDia ? 0 : n(eHDob),
       sueldo: eEsHora || eEsDia ? 0 : n(eMensual), aplicaLey: eLey, otrosImpuestos: n(eOtrosImp),
       fotoCedula: eFotoFrente, fotoCedulaReverso: eFotoReverso,
+      horaAcordada: eHoraAcordada, jornadaHoras: n(eJornada) > 0 ? n(eJornada) : 8, pagoProporcional: eProporcional,
       prestamoMonto: ePrestamo ? n(ePrestMonto) : 0, prestamoCuota: ePrestamo ? n(ePrestCuota) : 0, prestamoSaldo: saldo,
     };
     if (editEmpId) {
@@ -5021,7 +5031,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   function resumenRegistro(empId, desde, hasta, pagoIdPermitido) {
     const regs = registroHoras.filter((r) => r.empleadoId === empId && r.fecha >= desde && r.fecha <= hasta && (!r.pagoId || r.pagoId === pagoIdPermitido));
     const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0));
-    const dias = regs.reduce((s2, r) => s2 + diasDeHoras(n(r.horas)), 0);
+    const dias = r2(regs.reduce((s2, r) => s2 + diasRegistro(r), 0));
     return { regs, horas, dias };
   }
   function cargarEmpleadoEnPago(emp, rango) {
@@ -5169,6 +5179,14 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
 
   // ================= Registro de horas (entrada / salida) =================
   const horasRegistro = horasEntre(rEntrada, rSalida, rDescanso);
+  const empReg = empleados.find((e) => e.id === rEmpleadoId);
+  const tardanzaReg = tardanzaMin(rEntrada, empReg?.horaAcordada);
+  const diasReg = diasDelRegistro(horasRegistro, empReg);
+  function elegirEmpleadoHora(id) {
+    setREmpleadoId(id);
+    const emp = empleados.find((e) => e.id === id);
+    if (emp && !editHoraId && emp.horaAcordada) setREntrada(emp.horaAcordada);
+  }
   function limpiarFormHora() {
     setEditHoraId(null); setRFecha(hoy); setREntrada("08:00"); setRSalida("17:00"); setRDescanso("0"); setRNota("");
   }
@@ -5178,7 +5196,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     if (!rFecha) { alert("Elige la fecha."); return; }
     if (!rEntrada || !rSalida) { alert("Escribe la hora de entrada y la de salida."); return; }
     if (horasRegistro <= 0) { alert("Las horas trabajadas dan cero. Revisa la entrada, la salida y el descanso."); return; }
-    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: rFecha, entrada: rEntrada, salida: rSalida, descansoMin: n(rDescanso), horas: horasRegistro, nota: rNota.trim() };
+    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: rFecha, entrada: rEntrada, salida: rSalida, descansoMin: n(rDescanso), horas: horasRegistro, tardanzaMin: tardanzaReg, diasPago: diasReg, nota: rNota.trim() };
     if (editHoraId) {
       setRegistroHoras(registroHoras.map((r) => (r.id === editHoraId ? { ...r, ...datos } : r)));
     } else {
@@ -5203,7 +5221,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const resumenPorEmpleado = empleados.filter((e) => e.activo !== false).map((e) => {
     const regs = registroHoras.filter((r) => r.empleadoId === e.id && r.fecha >= hDesde && r.fecha <= hHasta && !r.pagoId);
     const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0));
-    const dias = regs.reduce((s2, r) => s2 + diasDeHoras(n(r.horas)), 0);
+    const dias = r2(regs.reduce((s2, r) => s2 + diasRegistro(r), 0));
     const modalidad = e.modalidad || e.periodicidad || "Quincenal";
     const tarifaDia = n(e.pagoDia) > 0 ? n(e.pagoDia) : tarifaDiaDe(e.cargo);
     const tarifaHora = n(e.salarioHora) > 0 ? n(e.salarioHora) : tarifaDia / 8;
@@ -5313,7 +5331,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
             <div style={{ fontWeight: 700, marginBottom: 8 }}>{editHoraId ? "Editar horas" : "Registrar entrada y salida"}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, alignItems: "end" }}>
               <FieldRow label="Empleado *">
-                <select className="hw-input" value={rEmpleadoId} onChange={(e) => setREmpleadoId(e.target.value)}>
+                <select className="hw-input" value={rEmpleadoId} onChange={(e) => elegirEmpleadoHora(e.target.value)}>
                   <option value="">Seleccionar...</option>
                   {empleados.filter((e) => e.activo !== false || e.id === rEmpleadoId).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                 </select>
@@ -5325,11 +5343,14 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <FieldRow label="Nota"><input className="hw-input" value={rNota} onChange={(e) => setRNota(e.target.value)} placeholder="Opcional" /></FieldRow>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-              <span style={{ fontSize: 14 }}>Horas trabajadas: <b>{horasRegistro}</b> · cuenta como <b>{diasDeHoras(horasRegistro)}</b> día</span>
+              <span style={{ fontSize: 14 }}>
+                {empReg && empReg.horaAcordada ? <>Hora acordada: <b>{empReg.horaAcordada}</b> · {tardanzaReg > 0 ? <b style={{ color: "#C0392B" }}>Llegó {tardanzaReg} min tarde</b> : "Llegó a tiempo"} · </> : null}
+                Horas trabajadas: <b>{horasRegistro}</b> · cuenta como <b>{diasReg}</b> día
+              </span>
               <button className="hw-btn" onClick={guardarHora}>{editHoraId ? "Actualizar" : "Agregar"}</button>
               {editHoraId && <button className="hw-btn ghost" onClick={limpiarFormHora}>Cancelar</button>}
             </div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Un día cuenta completo si se trabajan 6 horas o más; si son menos, cuenta medio día. Al pagar puede corregir los días a mano.</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Escriba la hora real en que llegó y la hora en que se fue. Si el empleado está configurado para pagarle solo el tiempo trabajado, el día se calcula en proporción a las horas (horas ÷ jornada); si no, cuenta completo con 6 horas o más. Al pagar puede corregir los días a mano.</div>
           </div>
 
           <div className="hw-panel" style={{ marginBottom: 12 }}>
@@ -5346,16 +5367,18 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               </select>
             </div>
             <table className="hw-table">
-              <thead><tr><th>Fecha</th><th>Empleado</th><th>Entrada</th><th>Salida</th><th>Descanso</th><th>Horas</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Empleado</th><th>Entrada</th><th>Tardanza</th><th>Salida</th><th>Descanso</th><th>Horas</th><th>Días</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {registrosRango.map((r) => (
                   <tr key={r.id}>
                     <td>{r.fecha}</td>
                     <td>{r.empleadoNombre}</td>
                     <td>{r.entrada}</td>
+                    <td>{n(r.tardanzaMin) > 0 ? <span style={{ color: "#C0392B", fontWeight: 600 }}>{r.tardanzaMin} min</span> : "—"}</td>
                     <td>{r.salida}</td>
                     <td>{n(r.descansoMin) ? r.descansoMin + " min" : "—"}</td>
                     <td><b>{r.horas}</b></td>
+                    <td>{diasRegistro(r)}</td>
                     <td>{r.pagoId ? <span className="hw-badge green">Pagado</span> : <span className="hw-badge">Pendiente</span>}</td>
                     <td style={{ display: "flex", gap: 6 }}>
                       <button className="hw-btn ghost small" onClick={() => abrirEditarHora(r)}><Edit2 size={13} /></button>
@@ -5363,7 +5386,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                     </td>
                   </tr>
                 ))}
-                {registrosRango.length === 0 && <tr><td colSpan={8} className="hw-empty">No hay horas registradas en estas fechas</td></tr>}
+                {registrosRango.length === 0 && <tr><td colSpan={10} className="hw-empty">No hay horas registradas en estas fechas</td></tr>}
               </tbody>
             </table>
           </div>
@@ -5514,6 +5537,14 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
                     Por defecto: Técnico RD$ 1,500 · Ayudante de técnico RD$ 1,000 · Colaborador RD$ 1,200 por día (sale solo al escribir el cargo). Puede cambiarlo a mano. {eEsHora ? "Si deja el pago por hora vacío, se calcula como el pago por día ÷ 8." : ""} Las horas se registran en la pestaña <b>Horas</b> (entrada y salida) y se pagan por semana.
                   </div>
+                  <div style={grid2}>
+                    <FieldRow label="Hora de entrada acordada"><input className="hw-input" type="time" value={eHoraAcordada} onChange={(e) => setEHoraAcordada(e.target.value)} /></FieldRow>
+                    <FieldRow label="Horas de la jornada"><input className="hw-input" type="number" value={eJornada} onChange={(e) => setEJornada(e.target.value)} placeholder="8" /></FieldRow>
+                  </div>
+                  <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13.5, margin: "4px 0 8px" }}>
+                    <input type="checkbox" style={{ marginTop: 3 }} checked={eProporcional} onChange={(e) => setEProporcional(e.target.checked)} />
+                    <span>Pagar solo el tiempo realmente trabajado: si llega tarde o se va antes, se le paga proporcional a las horas que trabajó{eEsDia ? " (horas trabajadas ÷ horas de la jornada)" : ""}.</span>
+                  </label>
                   <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>{eEsDia ? "Ejemplo: una semana de 6 días" : "Ejemplo: una semana de 44 horas"}</div>
                     <FilaResumen etiqueta="Salario ordinario" valor={calcE.ordinario} />
