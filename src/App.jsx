@@ -1157,6 +1157,7 @@ function Panel({ session }) {
   const [empleados, setEmpleados] = useSupabaseState("empleados");
   const [pagosNomina, setPagosNomina] = useSupabaseState("pagos_nomina");
   const [registroHoras, setRegistroHoras] = useSupabaseState("registro_horas");
+  const [ausencias, setAusencias] = useSupabaseState("ausencias");
   const [cuentasBancarias, setCuentasBancarias] = useSupabaseState("cuentas_bancarias");
   const [movimientosBancarios, setMovimientosBancarios] = useSupabaseState("movimientos_bancarios");
   const negocio = negocioConfig[0] || BUSINESS;
@@ -1563,7 +1564,7 @@ function Panel({ session }) {
           <Gastos gastos={gastos} setGastos={setGastos} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
         <div style={{ display: tab === "nomina" ? "block" : "none" }}>
-          <Nomina empleados={empleados} setEmpleados={setEmpleados} pagosNomina={pagosNomina} setPagosNomina={setPagosNomina} registroHoras={registroHoras} setRegistroHoras={setRegistroHoras} negocio={negocio} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
+          <Nomina empleados={empleados} setEmpleados={setEmpleados} pagosNomina={pagosNomina} setPagosNomina={setPagosNomina} registroHoras={registroHoras} setRegistroHoras={setRegistroHoras} ausencias={ausencias} setAusencias={setAusencias} negocio={negocio} cuentasBancarias={cuentasBancarias} movimientosBancarios={movimientosBancarios} setMovimientosBancarios={setMovimientosBancarios} />
         </div>
         <div style={{ display: tab === "reportes" ? "block" : "none" }}><Reportes facturas={facturas} abonosPagos={abonosPagos} productos={productos} /></div>
         <div style={{ display: tab === "usuarios" ? "block" : "none" }}>{esAdmin ? <UsuariosAdmin permisos={permisos} setPermisos={setPermisos} miEmail={miEmail} /> : <Proximamente titulo="Usuarios" />}</div>
@@ -4711,7 +4712,7 @@ function calcularPago(d) {
   const ley = d.ley || (d.aplicaLey === false ? { afp: 0, sfs: 0, isr: 0 } : calcularLey(totalGanado, d.periodicidad));
   const seguros = r2(n(ley.sfs) + n(ley.afp));
   const impuestos = r2(n(ley.isr) + n(d.otrosImp));
-  const otrasDesc = r2(n(d.prestamo) + n(d.adelantos) + n(d.otros));
+  const otrasDesc = r2(n(d.prestamo) + n(d.adelantos) + n(d.otros) + n(d.descAus));
   const totalDesc = r2(seguros + impuestos + otrasDesc);
   return { ordinario, pagoExtras, pagoDobles, bruto, totalGanado, ley, seguros, impuestos, otrasDesc, totalDesc, neto: r2(totalGanado - totalDesc) };
 }
@@ -4781,8 +4782,9 @@ function generarReciboNominaPDF(p, emp, negocio) {
     if (num(p.otrosImpuestos)) fila("Otros impuestos", p.otrosImpuestos, true, false, true);
     hay = true;
   }
-  if (num(p.prestamo) || num(p.adelantos) || num(p.otrosDescuentos)) {
+  if (num(p.prestamo) || num(p.adelantos) || num(p.otrosDescuentos) || num(p.descAusencias)) {
     sub("Otros descuentos");
+    if (num(p.descAusencias)) fila(`Ausencias sin pago (${num(p.diasAusencia)} día${num(p.diasAusencia) === 1 ? "" : "s"})`, p.descAusencias, true, false, true);
     if (num(p.prestamo)) fila("Préstamo", p.prestamo, true, false, true);
     if (num(p.adelantos)) fila("Adelantos", p.adelantos, true, false, true);
     if (num(p.otrosDescuentos)) fila("Otros descuentos", p.otrosDescuentos, true, false, true);
@@ -4835,6 +4837,20 @@ function comprimirImagen(archivo, maxLado = 1400, calidad = 0.72) {
   });
 }
 
+const TIPOS_AUSENCIA = ["Enfermedad", "Permiso", "Vacaciones", "Falta sin aviso", "Otro"];
+// Regla por defecto: la enfermedad se paga solo si entrega certificado médico; las vacaciones se pagan; lo demás no.
+const seCobraAusencia = (tipo, certificado) => (tipo === "Enfermedad" ? !!certificado : tipo === "Vacaciones");
+// Fechas del período de pago actual según la modalidad (semana, quincena o mes)
+function rangoDelPeriodo(modalidad, fechaISO) {
+  const d = new Date(fechaISO + "T12:00:00");
+  const y = d.getFullYear(), m = d.getMonth();
+  const f = (dia) => new Date(y, m, dia, 12).toISOString().slice(0, 10);
+  const finMes = new Date(y, m + 1, 0).getDate();
+  if (modalidad === "Semanal") { const l = lunesDeLaSemana(fechaISO); return { desde: l, hasta: sumarDias(l, 6) }; }
+  if (modalidad === "Quincenal") return d.getDate() <= 15 ? { desde: f(1), hasta: f(15) } : { desde: f(16), hasta: f(finMes) };
+  return { desde: f(1), hasta: f(finMes) };
+}
+
 // Pequeño bloque de resumen con etiqueta/valor para los formularios
 function FilaResumen({ etiqueta, valor, negativo, fuerte, sangria }) {
   return (
@@ -4852,7 +4868,7 @@ function SeccionNomina({ titulo, children }) {
   );
 }
 
-function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registroHoras = [], setRegistroHoras, negocio, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
+function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registroHoras = [], setRegistroHoras, ausencias = [], setAusencias, negocio, cuentasBancarias = [], movimientosBancarios = [], setMovimientosBancarios }) {
   const hoy = new Date().toISOString().slice(0, 10);
   const n = (v) => Number(v) || 0;
   const [vista, setVista] = useState("pagos");
@@ -4929,6 +4945,18 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const [rSalida, setRSalida] = useState("17:00");
   const [rDescanso, setRDescanso] = useState("0");
   const [rNota, setRNota] = useState("");
+  // ----- Ausencias -----
+  const [editAusId, setEditAusId] = useState(null);
+  const [aEmpleadoId, setAEmpleadoId] = useState("");
+  const [aFecha, setAFecha] = useState(hoy);
+  const [aTipo, setATipo] = useState("Enfermedad");
+  const [aSePaga, setASePaga] = useState(false);
+  const [aManual, setAManual] = useState(false);
+  const [aCert, setACert] = useState("");
+  const [aNota, setANota] = useState("");
+  const [verCert, setVerCert] = useState(null);
+  const [pDescAus, setPDescAus] = useState("");
+  const [pDiasAus, setPDiasAus] = useState("");
 
   // ----- Cálculo en vivo: formulario de empleado -----
   const eEsHora = eModalidad === "Por hora";
@@ -4943,12 +4971,15 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const cuotaE = ePrestamo ? Math.min(n(ePrestCuota), ePrestSaldo !== "" ? n(ePrestSaldo) : n(ePrestMonto)) : 0;
   const calcE = calcularPago({ modo: eEsDia ? "dia" : "horas", dias: 6, tarifaDia: n(ePagoDia), hora: horaE, hOrd: hOrdE, hExt: eHExt, hDob: eHDob, periodicidad: ePeriodicidad, aplicaLey: eLey, otrosImp: eOtrosImp, prestamo: cuotaE });
 
+  // La regla "se paga / no se paga" se ajusta sola según el tipo y el certificado, salvo que se cambie a mano
+  useEffect(() => { if (!aManual) setASePaga(seCobraAusencia(aTipo, aCert)); }, [aTipo, aCert, aManual]);
+
   // ----- Cálculo en vivo: formulario de pago -----
   const empPago = empleados.find((e) => e.id === pEmpleadoId);
   const pEsDia = pModalidad === "Por día";
   const pEsHora = pModalidad === "Por hora";
   const leyPago = { afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr) };
-  const calcP = calcularPago({ modo: pEsDia ? "dia" : "horas", dias: pDias, tarifaDia: pTarifaDia, hora: pHora, hOrd: pHOrd, hExt: pHExt, hDob: pHDob, ordinarioManual: pEsMonto ? pManual : undefined, bonos: pBonos, ley: leyPago, otrosImp: pOtrosImp, prestamo: pPrestamo, adelantos: pAdelantos, otros: pOtros });
+  const calcP = calcularPago({ modo: pEsDia ? "dia" : "horas", dias: pDias, tarifaDia: pTarifaDia, hora: pHora, hOrd: pHOrd, hExt: pHExt, hDob: pHDob, ordinarioManual: pEsMonto ? pManual : undefined, bonos: pBonos, ley: leyPago, otrosImp: pOtrosImp, prestamo: pPrestamo, adelantos: pAdelantos, otros: pOtros, descAus: pDescAus });
 
   // Recalcula AFP/SFS/ISR automáticamente mientras no se hayan escrito a mano.
   useEffect(() => {
@@ -5034,6 +5065,11 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     const dias = r2(regs.reduce((s2, r) => s2 + diasRegistro(r), 0));
     return { regs, horas, dias };
   }
+  function resumenAusencias(empId, desde, hasta, pagoIdPermitido) {
+    const lista = ausencias.filter((a) => a.empleadoId === empId && a.fecha >= desde && a.fecha <= hasta && (!a.pagoId || a.pagoId === pagoIdPermitido));
+    return { lista, pagadas: lista.filter((a) => a.sePaga).length, noPagadas: lista.filter((a) => !a.sePaga).length };
+  }
+  const valorDiaEmpleado = (emp) => r2(n(emp.salarioMensual != null ? emp.salarioMensual : n(emp.sueldo) * (PERIODOS_POR_ANIO[periodicidadDe(emp.modalidad || emp.periodicidad)] || 12) / 12) / 23.83);
   function cargarEmpleadoEnPago(emp, rango) {
     const modalidad = emp.modalidad || emp.periodicidad || "Quincenal";
     setPModalidad(modalidad);
@@ -5045,9 +5081,11 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       const desde = rango?.desde || lunesActual, hasta = rango?.hasta || sumarDias(lunesActual, 6);
       setPDesde(desde); setPHasta(hasta);
       const res = resumenRegistro(emp.id, desde, hasta);
+      const aus = resumenAusencias(emp.id, desde, hasta);
+      const jornada = n(emp.jornadaHoras) > 0 ? n(emp.jornadaHoras) : 8;
       const tarifaDia = n(emp.pagoDia) > 0 ? n(emp.pagoDia) : tarifaDiaDe(emp.cargo);
-      setPTarifaDia(String(tarifaDia)); setPDias(String(res.dias));
-      setPHora(String(n(emp.salarioHora) > 0 ? n(emp.salarioHora) : r2(tarifaDia / 8 * 100) / 100)); setPHOrd(String(res.horas));
+      setPTarifaDia(String(tarifaDia)); setPDias(String(r2(res.dias + aus.pagadas))); setPDiasAus(String(aus.pagadas)); setPDescAus("");
+      setPHora(String(n(emp.salarioHora) > 0 ? n(emp.salarioHora) : r2(tarifaDia / 8 * 100) / 100)); setPHOrd(String(r2(res.horas + aus.pagadas * jornada)));
       setPPeriodo(`Semana del ${desde} al ${hasta}`);
     } else {
       const ppy = PERIODOS_POR_ANIO[periodicidadDe(modalidad)] || 12;
@@ -5056,18 +5094,28 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       setPHora(String(hora));
       setPHOrd(String(n(emp.horasOrdinarias) > 0 ? emp.horasOrdinarias : r2(HORAS_MES * 12 / ppy)));
       setPHExt(emp.horasExtras ? String(emp.horasExtras) : ""); setPHDob(emp.horasDobles ? String(emp.horasDobles) : "");
-      setPDias(""); setPTarifaDia(""); setPDesde(""); setPHasta("");
+      setPDias(""); setPTarifaDia("");
+      const per = rango || rangoDelPeriodo(modalidad, hoy);
+      setPDesde(per.desde); setPHasta(per.hasta);
+      const aus = resumenAusencias(emp.id, per.desde, per.hasta);
+      setPDescAus(aus.noPagadas ? String(r2(aus.noPagadas * valorDiaEmpleado(emp))) : ""); setPDiasAus(String(aus.noPagadas));
     }
   }
   function recargarDelRegistro() {
     if (!empPago) return;
-    const res = resumenRegistro(empPago.id, pDesde, pHasta, editPagoId);
-    setPDias(String(res.dias)); setPHOrd(String(res.horas));
-    if (!pPeriodo.trim()) setPPeriodo(`Semana del ${pDesde} al ${pHasta}`);
+    const aus = resumenAusencias(empPago.id, pDesde, pHasta, editPagoId);
+    if (pEsHora || pEsDia) {
+      const res = resumenRegistro(empPago.id, pDesde, pHasta, editPagoId);
+      const jornada = n(empPago.jornadaHoras) > 0 ? n(empPago.jornadaHoras) : 8;
+      setPDias(String(r2(res.dias + aus.pagadas))); setPHOrd(String(r2(res.horas + aus.pagadas * jornada))); setPDiasAus(String(aus.pagadas));
+      if (!pPeriodo.trim()) setPPeriodo(`Semana del ${pDesde} al ${pHasta}`);
+    } else {
+      setPDescAus(aus.noPagadas ? String(r2(aus.noPagadas * valorDiaEmpleado(empPago))) : ""); setPDiasAus(String(aus.noPagadas));
+    }
   }
   function limpiarPago() {
     setPHora(""); setPHOrd(""); setPHExt(""); setPHDob(""); setPManual(""); setPEsMonto(false); setPBonos(""); setPAfp(""); setPSfs(""); setPIsr("");
-    setPOtrosImp(""); setPPrestamo(""); setPAdelantos(""); setPOtros(""); setPNota(""); setPFecha(hoy); setPMetodo("Efectivo"); setPPeriodo(""); setPDias(""); setPTarifaDia(""); setPDesde(""); setPHasta(""); setPModalidad("Quincenal");
+    setPOtrosImp(""); setPPrestamo(""); setPAdelantos(""); setPOtros(""); setPNota(""); setPFecha(hoy); setPMetodo("Efectivo"); setPPeriodo(""); setPDias(""); setPTarifaDia(""); setPDesde(""); setPHasta(""); setPModalidad("Quincenal"); setPDescAus(""); setPDiasAus("");
   }
   function abrirNuevoPago(emp, rango) {
     setEditPagoId(null); limpiarPago(); setPAuto(true);
@@ -5093,6 +5141,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     setPHExt(p.horasExtras ? String(p.horasExtras) : ""); setPHDob(p.horasDobles ? String(p.horasDobles) : "");
     setPBonos(p.bonos ? String(p.bonos) : "");
     setPAfp(p.afp ? String(p.afp) : ""); setPSfs(p.sfs ? String(p.sfs) : ""); setPIsr(p.isr ? String(p.isr) : ""); setPOtrosImp(p.otrosImpuestos ? String(p.otrosImpuestos) : "");
+    setPDescAus(p.descAusencias ? String(p.descAusencias) : ""); setPDiasAus(p.diasAusencia ? String(p.diasAusencia) : "");
     setPPrestamo(p.prestamo ? String(p.prestamo) : ""); setPAdelantos(p.adelantos ? String(p.adelantos) : ""); setPOtros(p.otrosDescuentos ? String(p.otrosDescuentos) : "");
     setPMetodo(p.metodo || "Efectivo"); setPNota(p.nota || "");
     setOpenPago(true);
@@ -5149,6 +5198,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       salarioOrdinario: calcP.ordinario, sueldoBase: calcP.ordinario, pagoExtras: calcP.pagoExtras, pagoDobles: calcP.pagoDobles,
       bonos: n(pBonos), adicionales: r2(calcP.pagoExtras + calcP.pagoDobles + n(pBonos)), totalGanado: calcP.totalGanado,
       afp: n(pAfp), sfs: n(pSfs), isr: n(pIsr), otrosImpuestos: n(pOtrosImp), prestamo: n(pPrestamo), adelantos: n(pAdelantos), otrosDescuentos: n(pOtros),
+      descAusencias: n(pDescAus), diasAusencia: n(pDiasAus),
       descuentos: calcP.totalDesc, neto: calcP.neto, metodo: pMetodo, nota: pNota.trim(),
     };
     const desc = `Nómina: ${emp.nombre} · ${pPeriodo.trim()}`;
@@ -5161,6 +5211,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       const nuevo = { id: uid(), ...datos, creadoEn: new Date().toISOString() };
       setPagosNomina([...pagosNomina, nuevo]);
       // Marca como pagadas las horas del registro que se incluyeron en este pago
+      if (setAusencias && !pEsMonto && pDesde && pHasta) {
+        setAusencias((prev) => prev.map((a) => (a.empleadoId === emp.id && a.fecha >= pDesde && a.fecha <= pHasta && !a.pagoId ? { ...a, pagoId: nuevo.id } : a)));
+      }
       if (setRegistroHoras && !pEsMonto && (pEsHora || pEsDia) && pDesde && pHasta) {
         setRegistroHoras((prev) => prev.map((r) => (r.empleadoId === emp.id && r.fecha >= pDesde && r.fecha <= pHasta && !r.pagoId ? { ...r, pagoId: nuevo.id } : r)));
       }
@@ -5175,6 +5228,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     if (setMovimientosBancarios) setMovimientosBancarios(movimientosBancarios.filter((m) => m.gastoId !== "nom-" + p.id));
     if (n(p.prestamo) > 0) ajustarSaldoPrestamo(p.empleadoId, p.prestamo, 0);
     if (setRegistroHoras) setRegistroHoras((prev) => prev.map((r) => (r.pagoId === p.id ? { ...r, pagoId: "" } : r)));
+    if (setAusencias) setAusencias((prev) => prev.map((a) => (a.pagoId === p.id ? { ...a, pagoId: "" } : a)));
   }
 
   // ================= Registro de horas (entrada / salida) =================
@@ -5220,8 +5274,10 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   // Resumen por empleado: lo que está pendiente de pagar en el rango
   const resumenPorEmpleado = empleados.filter((e) => e.activo !== false).map((e) => {
     const regs = registroHoras.filter((r) => r.empleadoId === e.id && r.fecha >= hDesde && r.fecha <= hHasta && !r.pagoId);
-    const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0));
-    const dias = r2(regs.reduce((s2, r) => s2 + diasRegistro(r), 0));
+    const aus0 = resumenAusencias(e.id, hDesde, hHasta);
+    const horas = r2(regs.reduce((s2, r) => s2 + n(r.horas), 0) + aus0.pagadas * (n(e.jornadaHoras) > 0 ? n(e.jornadaHoras) : 8));
+    const aus = aus0;
+    const dias = r2(regs.reduce((s2, r) => s2 + diasRegistro(r), 0) + aus.pagadas);
     const modalidad = e.modalidad || e.periodicidad || "Quincenal";
     const tarifaDia = n(e.pagoDia) > 0 ? n(e.pagoDia) : tarifaDiaDe(e.cargo);
     const tarifaHora = n(e.salarioHora) > 0 ? n(e.salarioHora) : tarifaDia / 8;
@@ -5229,6 +5285,40 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     return { e, regs, horas, dias, modalidad, monto };
   }).filter((x) => x.regs.length > 0 || x.modalidad === "Por hora" || x.modalidad === "Por día");
   const totalPendientePagar = resumenPorEmpleado.reduce((s2, x) => s2 + x.monto, 0);
+
+  // ================= Ausencias =================
+  function limpiarFormAusencia() {
+    setEditAusId(null); setAFecha(hoy); setATipo("Enfermedad"); setAManual(false); setACert(""); setANota("");
+  }
+  async function subirCertificado(evento) {
+    const archivo = evento.target.files && evento.target.files[0];
+    evento.target.value = "";
+    if (!archivo) return;
+    try { setACert(await comprimirImagen(archivo)); } catch (err) { alert(err.message || "No se pudo cargar la foto."); }
+  }
+  function guardarAusencia() {
+    const emp = empleados.find((e) => e.id === aEmpleadoId);
+    if (!emp) { alert("Elige el empleado."); return; }
+    if (!aFecha) { alert("Elige la fecha de la ausencia."); return; }
+    if (!editAusId && ausencias.some((a) => a.empleadoId === emp.id && a.fecha === aFecha) && !window.confirm(`${emp.nombre} ya tiene una ausencia registrada el ${aFecha}. ¿Agregar otra?`)) return;
+    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: aFecha, tipo: aTipo, sePaga: aSePaga, certificado: aCert, nota: aNota.trim() };
+    if (editAusId) setAusencias(ausencias.map((a) => (a.id === editAusId ? { ...a, ...datos } : a)));
+    else setAusencias([...ausencias, { id: uid(), ...datos, pagoId: "", creadoEn: new Date().toISOString() }]);
+    limpiarFormAusencia();
+  }
+  function abrirEditarAusencia(a) {
+    if (a.pagoId) { alert("Esta ausencia ya se incluyó en un pago. Si necesita corregirla, elimine primero el pago correspondiente."); return; }
+    setEditAusId(a.id); setAEmpleadoId(a.empleadoId); setAFecha(a.fecha); setATipo(a.tipo || "Otro"); setACert(a.certificado || ""); setANota(a.nota || "");
+    setAManual(true); setASePaga(!!a.sePaga);
+  }
+  function eliminarAusencia(a) {
+    if (a.pagoId) { alert("Esta ausencia ya se incluyó en un pago. Elimine primero el pago si necesita quitarla."); return; }
+    if (!window.confirm(`¿Eliminar la ausencia de ${a.empleadoNombre} del ${a.fecha}?`)) return;
+    setAusencias(ausencias.filter((x) => x.id !== a.id));
+  }
+  const ausenciasRango = ausencias
+    .filter((a) => a.fecha >= hDesde && a.fecha <= hHasta && (hFiltroEmp === "todos" || a.empleadoId === hFiltroEmp))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   function descargarRecibo(p) {
     const pdf = generarReciboNominaPDF(p, empleados.find((e) => e.id === p.empleadoId), negocio);
@@ -5353,6 +5443,40 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Escriba la hora real en que llegó y la hora en que se fue. Si el empleado está configurado para pagarle solo el tiempo trabajado, el día se calcula en proporción a las horas (horas ÷ jornada); si no, cuenta completo con 6 horas o más. Al pagar puede corregir los días a mano.</div>
           </div>
 
+          <div className="hw-panel" style={{ padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>{editAusId ? "Editar ausencia" : "Registrar ausencia (no vino a trabajar)"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, alignItems: "end" }}>
+              <FieldRow label="Empleado *">
+                <select className="hw-input" value={aEmpleadoId} onChange={(e) => setAEmpleadoId(e.target.value)}>
+                  <option value="">Seleccionar...</option>
+                  {empleados.filter((e) => e.activo !== false || e.id === aEmpleadoId).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </FieldRow>
+              <FieldRow label="Fecha"><input className="hw-input" type="date" value={aFecha} onChange={(e) => setAFecha(e.target.value)} /></FieldRow>
+              <FieldRow label="Motivo">
+                <select className="hw-input" value={aTipo} onChange={(e) => setATipo(e.target.value)}>{TIPOS_AUSENCIA.map((t) => <option key={t}>{t}</option>)}</select>
+              </FieldRow>
+              <FieldRow label="Nota"><input className="hw-input" value={aNota} onChange={(e) => setANota(e.target.value)} placeholder="Opcional" /></FieldRow>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "4px 0 6px" }}>
+              {aCert ? (
+                <img src={aCert} alt="Certificado médico" style={{ height: 56, borderRadius: 6, border: "1px solid var(--border, #E4E7EC)", cursor: "pointer" }} onClick={() => setVerCert({ titulo: "Certificado médico", foto: aCert })} />
+              ) : null}
+              <label className="hw-btn ghost small" style={{ cursor: "pointer" }}>
+                <Camera size={13} /> {aCert ? "Cambiar certificado" : "Cargar certificado médico"}
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={subirCertificado} />
+              </label>
+              {aCert && <button className="hw-btn ghost small" onClick={() => setACert("")}>Quitar</button>}
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, marginLeft: "auto" }}>
+                <input type="checkbox" checked={aSePaga} onChange={(e) => { setAManual(true); setASePaga(e.target.checked); }} />
+                Este día se paga
+              </label>
+              <button className="hw-btn" onClick={guardarAusencia}>{editAusId ? "Actualizar" : "Agregar"}</button>
+              {editAusId && <button className="hw-btn ghost" onClick={limpiarFormAusencia}>Cancelar</button>}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>Enfermedad: se paga solo si entrega el certificado médico (puede cargarlo después editando la ausencia). Vacaciones: se pagan. Permiso, falta sin aviso y otros: no se pagan. Puede cambiar la casilla a mano.</div>
+          </div>
+
           <div className="hw-panel" style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px" }}>
               <span style={{ fontSize: 13, color: "var(--muted)" }}>Desde:</span>
@@ -5387,6 +5511,30 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   </tr>
                 ))}
                 {registrosRango.length === 0 && <tr><td colSpan={10} className="hw-empty">No hay horas registradas en estas fechas</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="hw-panel" style={{ marginBottom: 12 }}>
+            <div style={{ padding: "10px 14px", fontWeight: 700 }}>Ausencias del {hDesde} al {hHasta}</div>
+            <table className="hw-table">
+              <thead><tr><th>Fecha</th><th>Empleado</th><th>Motivo</th><th>Certificado</th><th>¿Se paga?</th><th>Nota</th><th></th></tr></thead>
+              <tbody>
+                {ausenciasRango.map((a) => (
+                  <tr key={a.id}>
+                    <td>{a.fecha}</td>
+                    <td>{a.empleadoNombre}</td>
+                    <td>{a.tipo}</td>
+                    <td>{a.certificado ? <button className="hw-btn ghost small" onClick={() => setVerCert({ titulo: `Certificado de ${a.empleadoNombre} · ${a.fecha}`, foto: a.certificado })}>Ver</button> : (a.tipo === "Enfermedad" ? <span style={{ color: "#C0392B" }}>Falta el certificado</span> : "—")}</td>
+                    <td>{a.sePaga ? <span className="hw-badge green">Se paga</span> : <span className="hw-badge">Se descuenta</span>}{a.pagoId ? <span style={{ fontSize: 11.5, color: "var(--muted)", marginLeft: 6 }}>ya liquidada</span> : null}</td>
+                    <td>{a.nota || "—"}</td>
+                    <td style={{ display: "flex", gap: 6 }}>
+                      <button className="hw-btn ghost small" onClick={() => abrirEditarAusencia(a)}><Edit2 size={13} /></button>
+                      <button className="hw-btn ghost small" onClick={() => eliminarAusencia(a)}><X size={13} /></button>
+                    </td>
+                  </tr>
+                ))}
+                {ausenciasRango.length === 0 && <tr><td colSpan={7} className="hw-empty">No hay ausencias registradas en estas fechas</td></tr>}
               </tbody>
             </table>
           </div>
@@ -5642,16 +5790,16 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   <FieldRow label="Modalidad">
                     <select className="hw-input" value={pModalidad} onChange={(e) => setPModalidad(e.target.value)}>{MODALIDADES.map((x) => <option key={x}>{x}</option>)}</select>
                   </FieldRow>
-                  {(pEsHora || pEsDia) && (
+                  {(
                     <div style={{ background: "var(--accent-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ fontSize: 13 }}>Del</span>
                         <input className="hw-input" type="date" style={{ width: "auto" }} value={pDesde} onChange={(e) => setPDesde(e.target.value)} />
                         <span style={{ fontSize: 13 }}>al</span>
                         <input className="hw-input" type="date" style={{ width: "auto" }} value={pHasta} onChange={(e) => setPHasta(e.target.value)} />
-                        <button className="hw-btn small" onClick={recargarDelRegistro}>Cargar del registro de horas</button>
+                        <button className="hw-btn small" onClick={recargarDelRegistro}>{pEsHora || pEsDia ? "Cargar horas y ausencias" : "Cargar ausencias del período"}</button>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Toma las horas y los días registrados (sin pagar) en esas fechas. Puede corregir los números a mano.</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{pEsHora || pEsDia ? "Toma las horas, los días y las ausencias pagadas (por ejemplo enfermedad con certificado) registrados sin pagar en esas fechas. Puede corregir los números a mano." : "Toma las ausencias sin pago de esas fechas (por ejemplo enfermedad sin certificado) y calcula el descuento. Puede corregirlo a mano."}</div>
                     </div>
                   )}
                   {pEsDia ? (
@@ -5705,6 +5853,9 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                 <FieldRow label="Adelantos"><input className="hw-input" type="number" value={pAdelantos} onChange={(e) => setPAdelantos(e.target.value)} placeholder="0.00" /></FieldRow>
                 <FieldRow label="Otros"><input className="hw-input" type="number" value={pOtros} onChange={(e) => setPOtros(e.target.value)} placeholder="0.00" /></FieldRow>
               </div>
+              {!pEsHora && !pEsDia && !pEsMonto && (
+                <FieldRow label={`Descuento por ausencias sin pago (RD$)${n(pDiasAus) ? " · " + pDiasAus + " día(s)" : ""}`}><input className="hw-input" type="number" value={pDescAus} onChange={(e) => setPDescAus(e.target.value)} placeholder="0.00" /></FieldRow>
+              )}
               {empPago && n(empPago.prestamoSaldo) > 0 && (
                 <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 6 }}>Saldo pendiente del préstamo: <b>{money(empPago.prestamoSaldo)}</b>. Al guardar, la cuota se descuenta del saldo.</div>
               )}
@@ -5722,6 +5873,16 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <FilaResumen etiqueta="Neto ganado (a pagar)" valor={Math.max(calcP.neto, 0)} fuerte />
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={guardarPago}>Guardar pago</button>
+          </div>
+        </div>
+      )}
+
+      {verCert && (
+        <div className="hw-modal-overlay" onClick={() => setVerCert(null)}>
+          <div className="hw-modal" style={{ maxWidth: 560, maxHeight: "94vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="hw-modal-head"><div className="hw-modal-title">{verCert.titulo}</div><button className="hw-close" onClick={() => setVerCert(null)}><X size={18} /></button></div>
+            <img src={verCert.foto} alt="Certificado" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border, #E4E7EC)" }} />
+            <a className="hw-btn ghost small" style={{ marginTop: 8, display: "inline-flex" }} href={verCert.foto} download="Certificado-medico.jpg"><Download size={13} /> Descargar</a>
           </div>
         </div>
       )}
