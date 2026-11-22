@@ -5200,7 +5200,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     const emp = empleados.find((e) => e.id === pEmpleadoId);
     if (!emp) { alert("Elige el empleado."); return; }
     if (!pPeriodo.trim()) { alert("Escribe el período que se está pagando (por ejemplo: 1 al 15 de noviembre)."); return; }
-    if (calcP.ordinario <= 0) { alert(pEsMonto ? "Escribe el monto a pagar." : pEsDia ? "Revisa los días trabajados y el pago por día: el salario no puede ser cero." : "Revisa el salario por hora y las horas ordinarias: el salario ordinario no puede ser cero."); return; }
+    if (calcP.ordinario <= 0 && !(n(pBonos) > 0)) { alert(pEsMonto ? "Escribe el monto a pagar." : pEsDia ? "Revisa los días trabajados y el pago por día: el salario no puede ser cero." : "Revisa el salario por hora y las horas ordinarias: el salario ordinario no puede ser cero."); return; }
     if (calcP.neto < 0) { alert("Los descuentos no pueden ser mayores que lo que gana el empleado."); return; }
     if (n(pPrestamo) > 0 && !editPagoId && n(pPrestamo) > n(emp.prestamoSaldo) + 0.009) { alert("La cuota del préstamo es mayor que el saldo pendiente (" + money(emp.prestamoSaldo) + ")."); return; }
     const datos = {
