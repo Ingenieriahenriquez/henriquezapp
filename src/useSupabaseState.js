@@ -39,6 +39,8 @@ const CAMEL_TO_SNAKE = {
   pagoProporcional: "pago_proporcional",
   tardanzaMin: "tardanza_min",
   diasPago: "dias_pago",
+  diaExtra: "dia_extra",
+  montoExtra: "monto_extra",
   fotoCedula: "foto_cedula",
   fotoCedulaReverso: "foto_cedula_reverso",
   tarifaDia: "tarifa_dia",
