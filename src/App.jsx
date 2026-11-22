@@ -50,6 +50,8 @@ function fmtFecha(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || "");
 }
+// Convierte las fechas año-mes-día que aparezcan dentro de un texto a día/mes/año
+const fmtTexto = (t) => String(t || "").replace(/(\d{4})-(\d{2})-(\d{2})/g, "$3/$2/$1");
 function formatearFechaHora(iso) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -4749,7 +4751,7 @@ function generarReciboNominaPDF(p, emp, negocio) {
   const dato = (et, val, x, yy) => { pdf.setFont("helvetica", "bold"); pdf.text(et, x, yy); pdf.setFont("helvetica", "normal"); pdf.text(String(val || "-"), x + 27, yy); };
   dato("Cód. Emp.:", emp?.codigo, M, y); dato("Cédula:", emp?.cedula, 112, y); y += 6;
   dato("Empleado:", p.empleadoNombre, M, y); dato("Departamento:", emp?.departamento, 112, y); y += 6;
-  dato("Cargo:", emp?.cargo, M, y); dato("Período:", p.periodo, 112, y); y += 6;
+  dato("Cargo:", emp?.cargo, M, y); dato("Período:", fmtTexto(p.periodo), 112, y); y += 6;
   dato("Método de pago:", p.metodo, M, y); dato("Modalidad:", p.modalidad || emp?.periodicidad, 112, y); y += 8;
 
   const fila = (txt, val, neg, bold, sub) => {
@@ -5240,7 +5242,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     setOpenPago(false); setEditPagoId(null);
   }
   function eliminarPago(p) {
-    if (!window.confirm(`¿Eliminar el pago de ${p.empleadoNombre} (${p.periodo})?`)) return;
+    if (!window.confirm(`¿Eliminar el pago de ${p.empleadoNombre} (${fmtTexto(p.periodo)})?`)) return;
     setPagosNomina(pagosNomina.filter((x) => x.id !== p.id));
     if (setMovimientosBancarios) setMovimientosBancarios(movimientosBancarios.filter((m) => m.gastoId !== "nom-" + p.id));
     if (n(p.prestamo) > 0) ajustarSaldoPrestamo(p.empleadoId, p.prestamo, 0);
@@ -5417,7 +5419,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                   <tr key={p.id}>
                     <td>{fmtFecha(p.fecha)}</td>
                     <td>{p.empleadoNombre}</td>
-                    <td>{p.periodo}</td>
+                    <td>{fmtTexto(p.periodo)}</td>
                     <td>{money(ingresoDe(p))}</td>
                     <td>{ley ? money(ley) : "—"}</td>
                     <td>{otros > 0.004 ? money(otros) : "—"}</td>
@@ -5939,7 +5941,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
             <div className="hw-modal-head"><div className="hw-modal-title">Recibo de pago</div><button className="hw-close" onClick={() => setRecibo(null)}><X size={18} /></button></div>
             <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 12 }}>
               <div><b>{recibo.empleadoNombre}</b></div>
-              <div>Período: {recibo.periodo}</div>
+              <div>Período: {fmtTexto(recibo.periodo)}</div>
               <div>Neto ganado: <b>{money(recibo.neto)}</b></div>
             </div>
             <button className="hw-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => compartirRecibo(recibo)}><Share2 size={15} /> Compartir PDF</button>
