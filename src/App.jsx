@@ -45,6 +45,11 @@ function pastDate(daysAgo) {
   return d.toISOString().slice(0, 10);
 }
 
+// Fecha en formato día/mes/año (la base de datos la guarda como año-mes-día)
+function fmtFecha(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || "");
+}
 function formatearFechaHora(iso) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -443,7 +448,7 @@ function Graficas({ facturas, cotizaciones, productos }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#EDEEF2" />
-              <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="fecha" tickFormatter={(v) => String(v).length >= 10 ? fmtFecha(v).slice(0, 5) : v} tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} tickFormatter={moneyShort} width={44} />
               <Tooltip formatter={(v) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
               <Area type="monotone" dataKey="total" stroke="#E0791C" strokeWidth={2.5} fill="url(#hwGradG)" />
@@ -599,7 +604,7 @@ function Abonos({ facturas, setFacturas, abonosPagos, setAbonosPagos, cuentasBan
               const f = facturas.find((f) => f.id === a.facturaId);
               return (
                 <tr key={a.id}>
-                  <td>{a.fecha}</td><td className="hw-mono">{f?.ncf || "—"}</td><td>{money(a.monto)}</td><td>{a.metodo}</td><td>{a.nota}</td>
+                  <td>{fmtFecha(a.fecha)}</td><td className="hw-mono">{f?.ncf || "—"}</td><td>{money(a.monto)}</td><td>{a.metodo}</td><td>{a.nota}</td>
                 </tr>
               );
             })}
@@ -1778,7 +1783,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#EDEEF2" />
-                <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="fecha" tickFormatter={(v) => String(v).length >= 10 ? fmtFecha(v).slice(0, 5) : v} tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} tickFormatter={moneyShort} width={44} />
                 <Tooltip formatter={(v) => money(v)} contentStyle={{ borderRadius: 10, border: "1px solid #E7E9EF", fontSize: 12 }} />
                 <Area type="monotone" dataKey="total" stroke="#E0791C" strokeWidth={2.5} fill="url(#hwGrad)" />
@@ -1817,7 +1822,7 @@ function Dashboard({ clientes, facturas, cotizaciones, productos, recepciones, o
                   <tr key={f.id}>
                     <td><span className="hw-ncf-stub">{f.ncf}</span></td>
                     <td>{f.clienteNombre}</td>
-                    <td>{f.fecha}</td>
+                    <td>{fmtFecha(f.fecha)}</td>
                     <td>{money(total)}</td>
                     <td><EstadoBadge estado={f.estado} /></td>
                   </tr>
@@ -2461,7 +2466,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
   useEffect(() => {
     const contenido = negocio.instagram && negocio.instagram.trim()
       ? negocio.instagram.trim()
-      : `${negocio.nombre} | Comprobante: ${doc?.numero} | Fecha: ${doc?.fecha}`;
+      : `${negocio.nombre} | Comprobante: ${doc?.numero} | Fecha: ${fmtFecha(doc?.fecha)}`;
     if (qrRef.current && doc?.numero) {
       QRCode.toCanvas(qrRef.current, contenido, { width: 100, margin: 1 }, (err) => {
         if (err) console.error("No se pudo generar el código QR:", err);
@@ -2540,7 +2545,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-line" />
               <div style={{ fontWeight: 700 }}>{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
-              <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+              <div>Fecha: {fmtFecha(doc.fecha)}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
               {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
               {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
               <div className="hw-paper-line" />
@@ -2605,7 +2610,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
               <div className="hw-paper-line" />
               <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
               <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
-              <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+              <div>Fecha: {fmtFecha(doc.fecha)}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
               {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
               {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
               <div>Cliente: {doc.clienteNombre}</div>
@@ -2663,7 +2668,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                   <div className="hwp-doctype">
                     <div className="hwp-doctype-label">{esFactura ? "FACTURA DE CONSUMO" : "COTIZACIÓN"}</div>
                     <div className="hwp-doctype-num">{esFactura ? "NCF " : "No. "}{doc.numero}</div>
-                    <div className="hwp-doctype-date">Fecha: {doc.fecha}</div>
+                    <div className="hwp-doctype-date">Fecha: {fmtFecha(doc.fecha)}</div>
                     {formatearFechaHora(doc.creadoEn) && <div className="hwp-doctype-date">Procesado: {formatearFechaHora(doc.creadoEn)}</div>}
                     {doc.creadoEn && <div className="hwp-doctype-date">{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
                     {doc.atendidoPor && <div className="hwp-doctype-date">Atendido por: {doc.atendidoPor}</div>}
@@ -2743,7 +2748,7 @@ function PrintPreview({ doc, onClose, negocio, productos = [] }) {
                 <div className="hwp-t-line" />
                 <div>{esFactura ? "FACTURA CONSUMO" : "COTIZACIÓN"}</div>
                 <div>{esFactura ? "NCF: " : "No.: "}{doc.numero}</div>
-                <div>Fecha: {doc.fecha}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
+                <div>Fecha: {fmtFecha(doc.fecha)}{formatearFechaHora(doc.creadoEn) ? ` · Procesado: ${formatearFechaHora(doc.creadoEn)}` : ""}</div>
                 {doc.creadoEn && <div>{esFactura ? "Factura No: " : "Cotización No: "}{doc.numero}{secuenciaCompacta(doc.creadoEn)}</div>}
                 {doc.atendidoPor && <div>Atendido por: {doc.atendidoPor}</div>}
                 <div>Cliente: {doc.clienteNombre}</div>
@@ -3003,7 +3008,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
     const pagadoW = abonosPagos.filter((a) => a.facturaId === f.id).reduce((s, a) => s + Number(a.monto), 0);
     const avanceTxt = (f.estado === "Pendiente" || f.estado === "Abonada") && pagadoW > 0 && total - pagadoW > 0.009
       ? `\nAvance a total de factura: ${money(pagadoW)}\nSaldo pendiente: ${money(total - pagadoW)}` : "";
-    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${f.fecha}\nTotal: ${money(total)}${avanceTxt}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
+    const mensaje = `Hola ${f.clienteNombre}, le compartimos su factura ${f.ncf} de ${negocio.nombre}.\nFecha: ${fmtFecha(f.fecha)}\nTotal: ${money(total)}${avanceTxt}\nMétodo de pago: ${f.metodo}\n\n¡Gracias por su preferencia!`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -3080,7 +3085,7 @@ function Facturacion({ facturas, setFacturas, clientes, productos, setProductos,
                 <tr key={f.id}>
                   <td><span className="hw-ncf-stub">{f.ncf}</span></td>
                   <td>{f.clienteNombre}</td>
-                  <td>{f.fecha}</td>
+                  <td>{fmtFecha(f.fecha)}</td>
                   <td>{f.metodo}</td>
                   <td>{money(t.total)}</td>
                   <td><EstadoBadge estado={f.estado} /></td>
@@ -3269,7 +3274,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     const total = calcTotal(c.items, c.aplicaItbis).total;
     const avW = Number(c.avancePct) > 0 ? Math.round(total * Number(c.avancePct)) / 100 : 0;
     const avTxt = avW > 0 ? `\nAvance requerido (${c.avancePct}%): ${money(avW)}\nSaldo restante: ${money(total - avW)}` : "";
-    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${c.fecha}\nTotal: ${money(total)}${avTxt}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
+    const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${fmtFecha(c.fecha)}\nTotal: ${money(total)}${avTxt}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
 
@@ -3290,7 +3295,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
                 <tr key={c.id}>
                   <td className="hw-mono">{c.numero}</td>
                   <td>{c.clienteNombre}</td>
-                  <td>{c.fecha}</td>
+                  <td>{fmtFecha(c.fecha)}</td>
                   <td>{money(t.total)}</td>
                   <td><EstadoBadge estado={c.estado} /></td>
                   <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -3427,7 +3432,7 @@ function RecepcionEquipos({ recepciones, setRecepciones, clientes }) {
               <p><b>Serie:</b> {selected.serie || "—"}</p>
               <p><b>Accesorios:</b> {selected.accesorios || "—"}</p>
               <p><b>Técnico asignado:</b> {selected.tecnico || "—"}</p>
-              <p><b>Fecha recepción:</b> {selected.fecha}</p>
+              <p><b>Fecha recepción:</b> {fmtFecha(selected.fecha)}</p>
               {selected.falla && <p style={{ background: "var(--purple-soft)", padding: "8px 10px", borderRadius: 8, marginTop: 10 }}><b>Falla reportada:</b> {selected.falla}</p>}
               <div style={{ marginTop: 16 }}>
                 <div className="hw-panel-title" style={{ marginBottom: 8 }}>Cambiar estado</div>
@@ -3530,7 +3535,7 @@ function OrdenesTrabajo({ ordenes, setOrdenes, clientes }) {
               <p><b>Cliente:</b> {selected.clienteNombre}</p>
               {selected.direccion && <p style={{ display: "flex", alignItems: "flex-start", gap: 6 }}><MapPin size={14} style={{ marginTop: 2, flexShrink: 0 }} /> {selected.direccion}</p>}
               <p><b>Técnico asignado:</b> {selected.tecnico || "—"}</p>
-              <p><b>Fecha programada:</b> {selected.fecha}</p>
+              <p><b>Fecha programada:</b> {fmtFecha(selected.fecha)}</p>
               {selected.descripcion && <p style={{ background: "var(--jade-soft)", padding: "8px 10px", borderRadius: 8, marginTop: 10 }}><b>Descripción del trabajo:</b> {selected.descripcion}</p>}
               <div style={{ marginTop: 16 }}>
                 <div className="hw-panel-title" style={{ marginBottom: 8 }}>Cambiar estado</div>
@@ -3610,7 +3615,7 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
   return (
     <div>
       <div className="hw-header">
-        <div><div className="hw-title">Caja</div><div className="hw-sub">{sesionAbierta ? "Caja abierta desde " + sesionAbierta.fecha : "No hay caja abierta"}</div></div>
+        <div><div className="hw-title">Caja</div><div className="hw-sub">{sesionAbierta ? "Caja abierta desde " + fmtFecha(sesionAbierta.fecha) : "No hay caja abierta"}</div></div>
         {!sesionAbierta && <button className="hw-btn" onClick={abrirCaja}><Plus size={15} /> Abrir caja</button>}
       </div>
 
@@ -3685,7 +3690,7 @@ function Caja({ sesiones, setSesiones, movimientos, setMovimientos, facturas, mi
           <tbody>
             {sesiones.slice().reverse().map((s) => (
               <tr key={s.id}>
-                <td>{s.fecha}</td>
+                <td>{fmtFecha(s.fecha)}</td>
                 <td>{money(s.montoApertura)}</td>
                 <td>{s.montoCierre != null ? money(s.montoCierre) : "—"}</td>
                 <td>{s.montoEsperado != null ? money(s.montoEsperado) : "—"}</td>
@@ -4275,7 +4280,7 @@ function Compras({ compras, setCompras, productos, setProductos }) {
           <tbody>
             {[...compras].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((c) => (
               <tr key={c.id}>
-                <td>{c.fecha}</td>
+                <td>{fmtFecha(c.fecha)}</td>
                 <td>{c.suplidor}</td>
                 <td className="hw-mono">{c.facturaSuplidor || "—"}</td>
                 <td>{(c.items || []).map((i) => i.nombre).join(", ")}</td>
@@ -4573,7 +4578,7 @@ function Gastos({ gastos, setGastos, cuentasBancarias = [], movimientosBancarios
           <tbody>
             {[...gastosFiltrados].sort((a, b) => (b.creadoEn || "").localeCompare(a.creadoEn || "")).map((g) => (
               <tr key={g.id}>
-                <td>{g.fecha}</td>
+                <td>{fmtFecha(g.fecha)}</td>
                 <td>{g.concepto}</td>
                 <td>{g.categoria}</td>
                 <td>{g.metodo}{g.metodo === "Transferencia" && <span className="hw-badge blue" style={{ marginLeft: 6 }}>Auto</span>}</td>
@@ -4736,7 +4741,7 @@ function generarReciboNominaPDF(p, emp, negocio) {
   pdf.setFont("helvetica", "bold"); pdf.setFontSize(14); pdf.setTextColor(224, 121, 28);
   pdf.text("RECIBO DE PAGO DE NÓMINA", W - M, 20, { align: "right" });
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(90, 96, 108);
-  pdf.text("Fecha de pago: " + (p.fecha || ""), W - M, 26, { align: "right" });
+  pdf.text("Fecha de pago: " + fmtFecha(p.fecha), W - M, 26, { align: "right" });
   y = Math.max(y, 32) + 2;
   pdf.setDrawColor(16, 24, 39); pdf.setLineWidth(0.6); pdf.line(M, y, W - M, y); y += 7;
 
@@ -5093,7 +5098,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       const tarifaDia = n(emp.pagoDia) > 0 ? n(emp.pagoDia) : tarifaDiaDe(emp.cargo);
       setPTarifaDia(String(tarifaDia)); setPDias(String(r2(res.dias + aus.pagadas))); setPDiasAus(String(aus.pagadas)); setPDescAus("");
       setPHora(String(n(emp.salarioHora) > 0 ? n(emp.salarioHora) : r2(tarifaDia / 8 * 100) / 100)); setPHOrd(String(r2(res.horas + aus.pagadas * jornada)));
-      setPPeriodo(`Semana del ${desde} al ${hasta}`);
+      setPPeriodo(`Semana del ${fmtFecha(desde)} al ${fmtFecha(hasta)}`);
       setPBonos(res.extra ? String(res.extra) : "");
     } else {
       const ppy = PERIODOS_POR_ANIO[periodicidadDe(modalidad)] || 12;
@@ -5118,7 +5123,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
       const res = resumenRegistro(empPago.id, pDesde, pHasta, editPagoId);
       const jornada = n(empPago.jornadaHoras) > 0 ? n(empPago.jornadaHoras) : 8;
       setPDias(String(r2(res.dias + aus.pagadas))); setPHOrd(String(r2(res.horas + aus.pagadas * jornada))); setPDiasAus(String(aus.pagadas));
-      if (!pPeriodo.trim()) setPPeriodo(`Semana del ${pDesde} al ${pHasta}`);
+      if (!pPeriodo.trim()) setPPeriodo(`Semana del ${fmtFecha(pDesde)} al ${fmtFecha(pHasta)}`);
     } else {
       setPDescAus(aus.noPagadas ? String(r2(aus.noPagadas * valorDiaEmpleado(empPago))) : ""); setPDiasAus(String(aus.noPagadas));
     }
@@ -5281,7 +5286,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   }
   function eliminarHora(r) {
     if (r.pagoId) { alert("Estas horas ya fueron pagadas. Elimine primero el pago si necesita quitarlas."); return; }
-    if (!window.confirm(`¿Eliminar el registro de ${r.empleadoNombre} del ${r.fecha}?`)) return;
+    if (!window.confirm(`¿Eliminar el registro de ${r.empleadoNombre} del ${fmtFecha(r.fecha)}?`)) return;
     setRegistroHoras(registroHoras.filter((x) => x.id !== r.id));
   }
   const registrosRango = registroHoras
@@ -5330,7 +5335,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   }
   function eliminarAusencia(a) {
     if (a.pagoId) { alert("Esta ausencia ya se incluyó en un pago. Elimine primero el pago si necesita quitarla."); return; }
-    if (!window.confirm(`¿Eliminar la ausencia de ${a.empleadoNombre} del ${a.fecha}?`)) return;
+    if (!window.confirm(`¿Eliminar la ausencia de ${a.empleadoNombre} del ${fmtFecha(a.fecha)}?`)) return;
     setAusencias(ausencias.filter((x) => x.id !== a.id));
   }
   const ausenciasRango = ausencias
@@ -5410,7 +5415,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
                 const otros = (Number(p.descuentos) || 0) - ley;
                 return (
                   <tr key={p.id}>
-                    <td>{p.fecha}</td>
+                    <td>{fmtFecha(p.fecha)}</td>
                     <td>{p.empleadoNombre}</td>
                     <td>{p.periodo}</td>
                     <td>{money(ingresoDe(p))}</td>
@@ -5521,7 +5526,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <tbody>
                 {registrosRango.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.fecha}{r.diaExtra ? <span className="hw-badge" style={{ marginLeft: 6 }}>Día extra · {fmtRD(r.montoExtra)}</span> : null}</td>
+                    <td>{fmtFecha(r.fecha)}{r.diaExtra ? <span className="hw-badge" style={{ marginLeft: 6 }}>Día extra · {fmtRD(r.montoExtra)}</span> : null}</td>
                     <td>{r.empleadoNombre}</td>
                     <td>{r.entrada}</td>
                     <td>{n(r.tardanzaMin) > 0 ? <span style={{ color: "#C0392B", fontWeight: 600 }}>{r.tardanzaMin} min</span> : "—"}</td>
@@ -5548,10 +5553,10 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <tbody>
                 {ausenciasRango.map((a) => (
                   <tr key={a.id}>
-                    <td>{a.fecha}</td>
+                    <td>{fmtFecha(a.fecha)}</td>
                     <td>{a.empleadoNombre}</td>
                     <td>{a.tipo}</td>
-                    <td>{a.certificado ? <button className="hw-btn ghost small" onClick={() => setVerCert({ titulo: `Certificado de ${a.empleadoNombre} · ${a.fecha}`, foto: a.certificado })}>Ver</button> : (a.tipo === "Enfermedad" ? <span style={{ color: "#C0392B" }}>Falta el certificado</span> : "—")}</td>
+                    <td>{a.certificado ? <button className="hw-btn ghost small" onClick={() => setVerCert({ titulo: `Certificado de ${a.empleadoNombre} · ${fmtFecha(a.fecha)}`, foto: a.certificado })}>Ver</button> : (a.tipo === "Enfermedad" ? <span style={{ color: "#C0392B" }}>Falta el certificado</span> : "—")}</td>
                     <td>{a.sePaga ? <span className="hw-badge green">Se paga</span> : <span className="hw-badge">Se descuenta</span>}{a.pagoId ? <span style={{ fontSize: 11.5, color: "var(--muted)", marginLeft: 6 }}>ya liquidada</span> : null}</td>
                     <td>{a.nota || "—"}</td>
                     <td style={{ display: "flex", gap: 6 }}>
