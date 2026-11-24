@@ -40,6 +40,7 @@ const CAMEL_TO_SNAKE = {
   tardanzaMin: "tardanza_min",
   diasPago: "dias_pago",
   diaExtra: "dia_extra",
+  tipoDia: "tipo_dia",
   montoExtra: "monto_extra",
   fotoCedula: "foto_cedula",
   fotoCedulaReverso: "foto_cedula_reverso",
