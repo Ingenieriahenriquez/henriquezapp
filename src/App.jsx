@@ -4957,6 +4957,10 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const [rDescanso, setRDescanso] = useState("0");
   const [rNota, setRNota] = useState("");
   const [rDiaExtra, setRDiaExtra] = useState(esFinDeSemana(hoy));
+  const [rTipoExtra, setRTipoExtra] = useState("finde");
+  const [repTipo, setRepTipo] = useState("Semanal");
+  const [repRef, setRepRef] = useState(hoy);
+  const [repEmp, setRepEmp] = useState("todos");
   const [rMontoExtra, setRMontoExtra] = useState("");
   // ----- Ausencias -----
   const [editAusId, setEditAusId] = useState(null);
@@ -5257,14 +5261,14 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   const diasBase = diasDelRegistro(horasRegistro, empReg);
   const diasReg = rDiaExtra ? 0 : diasBase;
   const esFinSemanaReg = esFinDeSemana(rFecha);
-  function cambiarFechaHora(f) { setRFecha(f); if (!editHoraId) setRDiaExtra(esFinDeSemana(f)); }
+  function cambiarFechaHora(f) { setRFecha(f); if (!editHoraId) { setRDiaExtra(esFinDeSemana(f)); setRTipoExtra("finde"); } }
   function elegirEmpleadoHora(id) {
     setREmpleadoId(id);
     const emp = empleados.find((e) => e.id === id);
     if (emp && !editHoraId && emp.horaAcordada) setREntrada(emp.horaAcordada);
   }
   function limpiarFormHora() {
-    setEditHoraId(null); setRFecha(hoy); setREntrada("08:00"); setRSalida("17:00"); setRDescanso("0"); setRNota(""); setRDiaExtra(esFinDeSemana(hoy)); setRMontoExtra("");
+    setEditHoraId(null); setRFecha(hoy); setREntrada("08:00"); setRSalida("17:00"); setRDescanso("0"); setRNota(""); setRDiaExtra(esFinDeSemana(hoy)); setRTipoExtra("finde"); setRMontoExtra("");
   }
   function guardarHora() {
     const emp = empleados.find((e) => e.id === rEmpleadoId);
@@ -5273,7 +5277,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
     if (!rEntrada || !rSalida) { alert("Escribe la hora de entrada y la de salida."); return; }
     if (rDiaExtra && !(n(rMontoExtra) > 0)) { alert("Escribe cuánto se le va a pagar por este día extra."); return; }
     if (horasRegistro <= 0) { alert("Las horas trabajadas dan cero. Revisa la entrada, la salida y el descanso."); return; }
-    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: rFecha, entrada: rEntrada, salida: rSalida, descansoMin: n(rDescanso), horas: horasRegistro, tardanzaMin: tardanzaReg, diasPago: diasReg, diaExtra: rDiaExtra, montoExtra: rDiaExtra ? n(rMontoExtra) : 0, nota: rNota.trim() };
+    const datos = { empleadoId: emp.id, empleadoNombre: emp.nombre, fecha: rFecha, entrada: rEntrada, salida: rSalida, descansoMin: n(rDescanso), horas: horasRegistro, tardanzaMin: tardanzaReg, diasPago: diasReg, diaExtra: rDiaExtra, tipoDia: rDiaExtra ? rTipoExtra : "", montoExtra: rDiaExtra ? n(rMontoExtra) : 0, nota: rNota.trim() };
     if (editHoraId) {
       setRegistroHoras(registroHoras.map((r) => (r.id === editHoraId ? { ...r, ...datos } : r)));
     } else {
@@ -5284,7 +5288,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   }
   function abrirEditarHora(r) {
     if (r.pagoId) { alert("Estas horas ya fueron pagadas. Si necesita corregirlas, elimine primero el pago correspondiente."); return; }
-    setEditHoraId(r.id); setREmpleadoId(r.empleadoId); setRFecha(r.fecha); setREntrada(r.entrada || ""); setRSalida(r.salida || ""); setRDescanso(String(r.descansoMin || 0)); setRNota(r.nota || ""); setRDiaExtra(!!r.diaExtra); setRMontoExtra(r.montoExtra ? String(r.montoExtra) : "");
+    setEditHoraId(r.id); setREmpleadoId(r.empleadoId); setRFecha(r.fecha); setREntrada(r.entrada || ""); setRSalida(r.salida || ""); setRDescanso(String(r.descansoMin || 0)); setRNota(r.nota || ""); setRDiaExtra(!!r.diaExtra); setRTipoExtra(r.tipoDia || "finde"); setRMontoExtra(r.montoExtra ? String(r.montoExtra) : "");
   }
   function eliminarHora(r) {
     if (r.pagoId) { alert("Estas horas ya fueron pagadas. Elimine primero el pago si necesita quitarlas."); return; }
@@ -5359,6 +5363,39 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
   }
 
   const mesActual = hoy.slice(0, 7);
+  // ----- Reporte por semana / quincena / mes -----
+  const repRango = rangoDelPeriodo(repTipo, repRef);
+  const repEnRango = (f) => f >= repRango.desde && f <= repRango.hasta;
+  const repEmpleados = empleados.filter((e) => repEmp === "todos" || e.id === repEmp);
+  const jornadaDe = (e) => (e && n(e.jornadaHoras) > 0 ? n(e.jornadaHoras) : 8);
+  const horasExtraDe = (r, e) => (r.diaExtra ? 0 : Math.max(0, n(r.horas) - jornadaDe(e)));
+  const repFilas = repEmpleados.map((e) => {
+    const regs = registroHoras.filter((r) => r.empleadoId === e.id && repEnRango(r.fecha));
+    const normales = regs.filter((r) => !r.diaExtra);
+    const extras = regs.filter((r) => r.diaExtra);
+    const pagos = pagosNomina.filter((p) => p.empleadoId === e.id && repEnRango(p.fecha));
+    const aus = ausencias.filter((a) => a.empleadoId === e.id && repEnRango(a.fecha));
+    return {
+      e, regs, extras, pagos, aus,
+      dias: r2(normales.reduce((s2, r) => s2 + diasRegistro(r), 0)),
+      horas: r2(normales.reduce((s2, r) => s2 + n(r.horas), 0)),
+      horasExtra: r2(normales.reduce((s2, r) => s2 + horasExtraDe(r, e), 0)),
+      feriados: extras.filter((r) => r.tipoDia === "feriado").length,
+      findes: extras.filter((r) => r.tipoDia !== "feriado").length,
+      montoExtras: r2(extras.reduce((s2, r) => s2 + n(r.montoExtra), 0)),
+      ganado: r2(pagos.reduce((s2, p) => s2 + n(p.totalGanado), 0)),
+      descuentos: r2(pagos.reduce((s2, p) => s2 + n(p.descuentos), 0)),
+      neto: r2(pagos.reduce((s2, p) => s2 + n(p.neto), 0)),
+    };
+  }).filter((f) => f.regs.length || f.pagos.length || f.aus.length);
+  const repTot = repFilas.reduce((t, f) => ({
+    dias: t.dias + f.dias, horas: t.horas + f.horas, horasExtra: t.horasExtra + f.horasExtra, feriados: t.feriados + f.feriados, findes: t.findes + f.findes,
+    montoExtras: t.montoExtras + f.montoExtras, aus: t.aus + f.aus.length, ganado: t.ganado + f.ganado, descuentos: t.descuentos + f.descuentos, neto: t.neto + f.neto,
+  }), { dias: 0, horas: 0, horasExtra: 0, feriados: 0, findes: 0, montoExtras: 0, aus: 0, ganado: 0, descuentos: 0, neto: 0 });
+  const repDiasExtra = repFilas.flatMap((f) => f.extras.map((r) => ({ r, e: f.e }))).sort((a, b) => a.r.fecha.localeCompare(b.r.fecha));
+  const repHorasExtra = repFilas.flatMap((f) => f.regs.filter((r) => horasExtraDe(r, f.e) > 0).map((r) => ({ r, e: f.e, extra: r2(horasExtraDe(r, f.e)) }))).sort((a, b) => a.r.fecha.localeCompare(b.r.fecha));
+  function moverReporte(dir) { setRepRef(dir < 0 ? sumarDias(repRango.desde, -1) : sumarDias(repRango.hasta, 1)); }
+
   const pagadoMes = pagosNomina.filter((p) => (p.fecha || "").slice(0, 7) === mesActual).reduce((s, p) => s + (Number(p.neto) || 0), 0);
   const activos = empleados.filter((e) => e.activo !== false);
   const nominaPorPeriodo = activos.reduce((s, e) => s + (Number(e.sueldo) || 0), 0);
@@ -5395,6 +5432,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
         <button className={"hw-btn small " + (vista === "horas" ? "" : "ghost")} onClick={() => setVista("horas")}>Horas</button>
         <button className={"hw-btn small " + (vista === "empleados" ? "" : "ghost")} onClick={() => setVista("empleados")}>Empleados</button>
         <button className={"hw-btn small " + (vista === "regalia" ? "" : "ghost")} onClick={() => setVista("regalia")}>Regalía pascual</button>
+        <button className={"hw-btn small " + (vista === "reporte" ? "" : "ghost")} onClick={() => setVista("reporte")}>Reporte</button>
       </div>
 
       {vista === "pagos" && (
@@ -5455,9 +5493,10 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <FieldRow label="Hora de salida"><input className="hw-input" type="time" value={rSalida} onChange={(e) => setRSalida(e.target.value)} /></FieldRow>
               <FieldRow label="Descanso (min)"><input className="hw-input" type="number" value={rDescanso} onChange={(e) => setRDescanso(e.target.value)} /></FieldRow>
               <FieldRow label="Tipo de día">
-                <select className="hw-input" value={rDiaExtra ? "extra" : "normal"} onChange={(e) => setRDiaExtra(e.target.value === "extra")}>
+                <select className="hw-input" value={rDiaExtra ? rTipoExtra : "normal"} onChange={(e) => { const v = e.target.value; setRDiaExtra(v !== "normal"); if (v !== "normal") setRTipoExtra(v); }}>
                   <option value="normal">Día normal</option>
-                  <option value="extra">Día extra (sábado, domingo o feriado)</option>
+                  <option value="finde">Día extra (sábado o domingo)</option>
+                  <option value="feriado">Feriado trabajado</option>
                 </select>
               </FieldRow>
               {rDiaExtra && (
@@ -5528,7 +5567,7 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
               <tbody>
                 {registrosRango.map((r) => (
                   <tr key={r.id}>
-                    <td>{fmtFecha(r.fecha)}{r.diaExtra ? <span className="hw-badge" style={{ marginLeft: 6 }}>Día extra · {fmtRD(r.montoExtra)}</span> : null}</td>
+                    <td>{fmtFecha(r.fecha)}{r.diaExtra ? <span className="hw-badge" style={{ marginLeft: 6 }}>{r.tipoDia === "feriado" ? "Feriado" : "Día extra"} · {fmtRD(r.montoExtra)}</span> : null}</td>
                     <td>{r.empleadoNombre}</td>
                     <td>{r.entrada}</td>
                     <td>{n(r.tardanzaMin) > 0 ? <span style={{ color: "#C0392B", fontWeight: 600 }}>{r.tardanzaMin} min</span> : "—"}</td>
@@ -5628,6 +5667,89 @@ function Nomina({ empleados, setEmpleados, pagosNomina, setPagosNomina, registro
             </tbody>
           </table>
           {activos.length > 0 && <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>Si se pagara a todos los activos en un período: {money(nominaPorPeriodo)} (antes de descuentos)</div>}
+        </div>
+      )}
+
+      {vista === "reporte" && (
+        <div>
+          <div className="hw-panel" style={{ padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "var(--muted)" }}>Ver por:</span>
+              {["Semanal", "Quincenal", "Mensual"].map((t) => (
+                <button key={t} className={"hw-btn small " + (repTipo === t ? "" : "ghost")} onClick={() => setRepTipo(t)}>{t === "Semanal" ? "Semana" : t === "Quincenal" ? "Quincena" : "Mes"}</button>
+              ))}
+              <button className="hw-btn ghost small" onClick={() => moverReporte(-1)}>◀ Anterior</button>
+              <b style={{ fontSize: 14.5 }}>{fmtFecha(repRango.desde)} al {fmtFecha(repRango.hasta)}</b>
+              <button className="hw-btn ghost small" onClick={() => moverReporte(1)}>Siguiente ▶</button>
+              <button className="hw-btn ghost small" onClick={() => setRepRef(hoy)}>Hoy</button>
+              <select className="hw-input" style={{ width: "auto", marginLeft: "auto" }} value={repEmp} onChange={(e) => setRepEmp(e.target.value)}>
+                <option value="todos">Todos los empleados</option>
+                {empleados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="hw-panel" style={{ marginBottom: 12, overflowX: "auto" }}>
+            <div style={{ padding: "10px 14px", fontWeight: 700 }}>Resumen por empleado</div>
+            <table className="hw-table">
+              <thead><tr><th>Empleado</th><th>Días</th><th>Horas</th><th>Horas extra</th><th>Sáb/Dom</th><th>Feriados</th><th>Monto días extra</th><th>Ausencias</th><th>Total ganado</th><th>Descuentos</th><th>Neto pagado</th></tr></thead>
+              <tbody>
+                {repFilas.map((f) => (
+                  <tr key={f.e.id}>
+                    <td>{f.e.nombre}</td><td>{f.dias}</td><td>{f.horas}</td>
+                    <td>{f.horasExtra > 0 ? <b style={{ color: "#E0791C" }}>{f.horasExtra}</b> : "—"}</td>
+                    <td>{f.findes || "—"}</td><td>{f.feriados || "—"}</td>
+                    <td>{f.montoExtras ? fmtRD(f.montoExtras) : "—"}</td>
+                    <td>{f.aus.length || "—"}</td>
+                    <td>{fmtRD(f.ganado)}</td><td>{f.descuentos ? fmtRD(f.descuentos) : "—"}</td><td><b>{fmtRD(f.neto)}</b></td>
+                  </tr>
+                ))}
+                {repFilas.length === 0 && <tr><td colSpan={11} className="hw-empty">No hay horas, ausencias ni pagos en este período</td></tr>}
+                {repFilas.length > 0 && (
+                  <tr style={{ fontWeight: 700 }}>
+                    <td>TOTAL</td><td>{r2(repTot.dias)}</td><td>{r2(repTot.horas)}</td><td>{r2(repTot.horasExtra) || "—"}</td><td>{repTot.findes || "—"}</td><td>{repTot.feriados || "—"}</td>
+                    <td>{repTot.montoExtras ? fmtRD(repTot.montoExtras) : "—"}</td><td>{repTot.aus || "—"}</td><td>{fmtRD(repTot.ganado)}</td><td>{repTot.descuentos ? fmtRD(repTot.descuentos) : "—"}</td><td>{fmtRD(repTot.neto)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <div style={{ padding: "8px 14px 12px", fontSize: 12, color: "var(--muted)" }}>Días y horas salen del registro de horas (sin contar los días extra). "Horas extra" son las horas trabajadas por encima de la jornada de cada empleado. Total ganado, descuentos y neto son los pagos hechos con fecha dentro de este período.</div>
+          </div>
+
+          <div className="hw-panel" style={{ marginBottom: 12, overflowX: "auto" }}>
+            <div style={{ padding: "10px 14px", fontWeight: 700 }}>Sábados, domingos y feriados trabajados</div>
+            <table className="hw-table">
+              <thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Monto</th><th>Estado</th></tr></thead>
+              <tbody>
+                {repDiasExtra.map(({ r, e }) => (
+                  <tr key={r.id}>
+                    <td>{fmtFecha(r.fecha)} <span style={{ color: "var(--muted)", fontSize: 12 }}>{NOMBRE_DIA[new Date(r.fecha + "T12:00:00").getDay()]}</span></td>
+                    <td>{e.nombre}</td>
+                    <td>{r.tipoDia === "feriado" ? <span className="hw-badge" style={{ background: "#FDECEA", color: "#C0392B" }}>Feriado</span> : <span className="hw-badge">Sáb/Dom</span>}</td>
+                    <td>{r.entrada}</td><td>{r.salida}</td><td>{r.horas}</td><td><b>{fmtRD(r.montoExtra)}</b></td>
+                    <td>{r.pagoId ? <span className="hw-badge green">Pagado</span> : <span className="hw-badge">Pendiente</span>}</td>
+                  </tr>
+                ))}
+                {repDiasExtra.length === 0 && <tr><td colSpan={8} className="hw-empty">No se trabajó ningún día extra ni feriado en este período</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="hw-panel" style={{ overflowX: "auto" }}>
+            <div style={{ padding: "10px 14px", fontWeight: 700 }}>Horas fuera de horario (horas extra)</div>
+            <table className="hw-table">
+              <thead><tr><th>Fecha</th><th>Empleado</th><th>Entrada</th><th>Salida</th><th>Horas trabajadas</th><th>Jornada</th><th>Horas extra</th></tr></thead>
+              <tbody>
+                {repHorasExtra.map(({ r, e, extra }) => (
+                  <tr key={r.id}>
+                    <td>{fmtFecha(r.fecha)}</td><td>{e.nombre}</td><td>{r.entrada}</td><td>{r.salida}</td><td>{r.horas}</td><td>{jornadaDe(e)}</td>
+                    <td><b style={{ color: "#E0791C" }}>{extra}</b></td>
+                  </tr>
+                ))}
+                {repHorasExtra.length === 0 && <tr><td colSpan={7} className="hw-empty">No hay horas extra registradas en este período</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
