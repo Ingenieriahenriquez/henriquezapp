@@ -14,6 +14,7 @@ const CAMEL_TO_SNAKE = {
   aplicaItbis: "aplicaitbis",
   notaImportante: "nota_importante",
   avancePct: "avance_pct",
+  avanceMonto: "avance_monto",
   montoApertura: "monto_apertura",
   montoCierre: "monto_cierre",
   montoEsperado: "monto_esperado",
