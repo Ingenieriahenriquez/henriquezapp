@@ -3211,8 +3211,19 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   const [conAvanceCot, setConAvanceCot] = useState(false);
   const [avancePctCot, setAvancePctCot] = useState("80");
   const totals = calcTotal(items.filter((i) => i.nombre), aplicaItbis);
-  const pctCotNum = Math.min(Math.max(Number(avancePctCot) || 0, 0), 99.99);
-  const avanceCotMonto = Math.round(totals.total * pctCotNum) / 100;
+  const [avanceMontoCot, setAvanceMontoCot] = useState("");
+  const pctCotPorcentaje = Math.min(Math.max(Number(avancePctCot) || 0, 0), 99.99);
+  // Avance: el monto exacto que se escriba, o si no, el porcentaje del total
+  const avanceCotMonto = avanceMontoCot !== "" ? Math.min(Number(avanceMontoCot) || 0, totals.total) : Math.round(totals.total * pctCotPorcentaje) / 100;
+  const pctCotNum = totals.total > 0 ? Math.round((avanceCotMonto / totals.total) * 10000) / 100 : 0;
+  const fmtMontoCot = (raw) => {
+    if (raw === "" || raw == null) return "";
+    const [ent, dec] = String(raw).split(".");
+    const entFmt = (ent || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return dec !== undefined ? entFmt + "." + dec : entFmt;
+  };
+  // Avance de una cotización ya guardada: monto exacto si lo tiene, si no el porcentaje
+  const avanceDeCot = (c, tot) => (Number(c.avanceMonto) > 0 ? Math.min(Number(c.avanceMonto), tot) : Number(c.avancePct) > 0 ? Math.round(tot * Number(c.avancePct)) / 100 : 0);
 
   function abrirNueva() {
     setEditingId(null);
@@ -3220,6 +3231,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     setAplicaItbis(true);
     setConAvanceCot(false);
     setAvancePctCot("80");
+    setAvanceMontoCot("");
     setItems([{ nombre: "", cantidad: 1, precio: 0 }]);
     setOpen(true);
   }
@@ -3231,6 +3243,7 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     setAplicaItbis(c.aplicaItbis !== false);
     setConAvanceCot(Number(c.avancePct) > 0);
     setAvancePctCot(Number(c.avancePct) > 0 ? String(c.avancePct) : "80");
+    setAvanceMontoCot(Number(c.avanceMonto) > 0 ? String(c.avanceMonto) : "");
     setOpen(true);
   }
 
@@ -3238,13 +3251,13 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente) { alert("Selecciona el cliente antes de guardar la cotización."); return; }
     if (items.every((i) => !i.nombre)) { alert("Agrega al menos un producto o servicio."); return; }
-    if (conAvanceCot && !(pctCotNum > 0)) { alert("Escribe el porcentaje de avance (por ejemplo 80)."); return; }
+    if (conAvanceCot && !(avanceCotMonto > 0)) { alert("Escribe el porcentaje o el monto del avance."); return; }
     if (editingId) {
-      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0 } : c)));
+      setCotizaciones(cotizaciones.map((c) => (c.id === editingId ? { ...c, clienteNombre: cliente.nombre, items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0, avanceMonto: conAvanceCot && avanceMontoCot !== "" ? avanceCotMonto : 0 } : c)));
     } else {
       setCotizaciones([...cotizaciones, {
         id: uid(), numero: nextCot(cotizaciones), clienteNombre: cliente.nombre,
-        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0, estado: "Pendiente",
+        fecha: new Date().toISOString().slice(0, 10), creadoEn: new Date().toISOString(), items: items.filter((i) => i.nombre), aplicaItbis, avancePct: conAvanceCot ? pctCotNum : 0, avanceMonto: conAvanceCot && avanceMontoCot !== "" ? avanceCotMonto : 0, estado: "Pendiente",
       }]);
     }
     setOpen(false);
@@ -3267,15 +3280,15 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
   function abrirImpresion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
     const totC = calcTotal(c.items, c.aplicaItbis).total;
-    const avC = Number(c.avancePct) > 0 ? Math.round(totC * Number(c.avancePct)) / 100 : 0;
+    const avC = avanceDeCot(c, totC);
     setPrintDoc({ tipo: "Cotización", avance: avC, saldoPendiente: avC > 0 ? totC - avC : 0, numero: c.numero, fecha: c.fecha, clienteNombre: c.clienteNombre, clienteNegocio: cliente?.negocio, clienteRnc: cliente?.rnc, clienteTelefono: cliente?.telefono, clienteCorreo: cliente?.correo, clienteDireccion: cliente?.direccion, items: c.items, aplicaItbis: c.aplicaItbis, creadoEn: c.creadoEn, atendidoPor: nombreUsuario(miEmail) });
   }
 
   function whatsappCotizacion(c) {
     const cliente = clientes.find((cl) => cl.nombre === c.clienteNombre);
     const total = calcTotal(c.items, c.aplicaItbis).total;
-    const avW = Number(c.avancePct) > 0 ? Math.round(total * Number(c.avancePct)) / 100 : 0;
-    const avTxt = avW > 0 ? `\nAvance requerido (${c.avancePct}%): ${money(avW)}\nSaldo restante: ${money(total - avW)}` : "";
+    const avW = avanceDeCot(c, total);
+    const avTxt = avW > 0 ? `\nAvance requerido (${Math.round((avW / total) * 1000) / 10}%): ${money(avW)}\nSaldo restante: ${money(total - avW)}` : "";
     const mensaje = `Hola ${c.clienteNombre}, le compartimos su cotización ${c.numero} de ${negocio.nombre}.\nFecha: ${fmtFecha(c.fecha)}\nTotal: ${money(total)}${avTxt}\nValidez: 15 días\n\nQuedamos atentos a su aprobación.`;
     enviarWhatsApp(cliente?.telefono, mensaje);
   }
@@ -3340,13 +3353,25 @@ function Cotizaciones({ cotizaciones, setCotizaciones, clientes, productos, setP
               {conAvanceCot && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={avancePctCot} onChange={(e) => setAvancePctCot(e.target.value)} />
-                    <span>% del total</span>
+                    <input className="hw-input" type="number" min="1" max="99" style={{ width: 80 }} value={avanceMontoCot !== "" ? String(pctCotNum) : avancePctCot} onChange={(e) => { setAvancePctCot(e.target.value); setAvanceMontoCot(""); }} />
+                    <span>%</span>
+                    <span style={{ fontWeight: 600 }}>RD$</span>
+                    <input
+                      className="hw-input" type="text" inputMode="decimal" style={{ flex: 1, minWidth: 120 }} placeholder="Monto exacto del avance"
+                      value={fmtMontoCot(avanceMontoCot !== "" ? avanceMontoCot : (avanceCotMonto ? avanceCotMonto.toFixed(2) : ""))}
+                      onChange={(e) => {
+                        let v = e.target.value.replace(/[^\d.]/g, "");
+                        const i = v.indexOf(".");
+                        if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, "").slice(0, 2);
+                        setAvanceMontoCot(v);
+                      }}
+                    />
                   </div>
                   <div style={{ marginTop: 8, padding: "9px 12px", background: "var(--accent-soft)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6 }}>
                     <div><b>Avance que debe pagar el cliente:</b> {money(avanceCotMonto)} ({pctCotNum} %)</div>
                     <div><b>Saldo restante:</b> {money(Math.max(totals.total - avanceCotMonto, 0))}</div>
                   </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Escriba el porcentaje, o el monto exacto si el cliente da más o menos.</div>
                 </div>
               )}
             </FieldRow>
